@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { authenticatedFetch as fetch } from './auth-client.mjs';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createApp } from '../server.mjs';
@@ -10,6 +10,7 @@ import { groundedResult } from '../backend/assessment.mjs';
 import { startMockProvider, createTestVault } from './mock-provider.mjs';
 
 test('逐题自评：真实协议、证据边界、部分支持、失败重试和保真导出', async t => {
+  await mkdir(resolve('.test-data'), { recursive: true });
   const directory = await mkdtemp(resolve('.test-data/assessment-'));
   assert.equal(spawnSync('python', ['-X','utf8','tests/create_fixtures.py', directory]).status, 0);
   assert.equal(spawnSync('python', ['-X','utf8','tests/create_assessment_fixtures.py', directory]).status, 0);

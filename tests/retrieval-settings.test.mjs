@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { authenticatedFetch as fetch } from './auth-client.mjs';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createApp } from '../server.mjs';
@@ -27,6 +27,7 @@ test('推荐默认值及参数边界不混淆不同阶段',()=>{
 });
 
 test('检索设置独立保存、自评快照和旧任务兼容',async t=>{
+ await mkdir(resolve('.test-data'), { recursive: true });
  const directory=await mkdtemp(resolve('.test-data/retrieval-settings-'));
  for(const script of ['create_fixtures.py','create_assessment_fixtures.py'])assert.equal(spawnSync('python',['-X','utf8',`tests/${script}`,directory]).status,0);
  const mock=await startMockProvider(),vault=createTestVault();

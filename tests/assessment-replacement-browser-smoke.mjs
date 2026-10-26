@@ -9,6 +9,7 @@ import { createProviderClient } from '../backend/providers.mjs';
 import { startMockProvider, createTestVault } from './mock-provider.mjs';
 
 const { chromium } = await import(process.env.QSA_PLAYWRIGHT_MODULE ? pathToFileURL(process.env.QSA_PLAYWRIGHT_MODULE).href : 'playwright');
+await mkdir(resolve('.test-data'), { recursive: true });
 const directory = await mkdtemp(resolve('.test-data/replacement-browser-'));
 for (const script of ['create_fixtures.py', 'create_assessment_fixtures.py', 'create_replacement_fixtures.py']) {
   assert.equal(spawnSync('python', ['-X', 'utf8', `tests/${script}`, directory]).status, 0);

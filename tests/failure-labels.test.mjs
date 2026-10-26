@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { providerError } from '../backend/providers.mjs';
@@ -38,6 +38,7 @@ test('从嵌套与聚合异常识别连接故障及超时，取消和HTTP服务�
   for(const [raw,code,text]of cases){const safe=providerError(raw);assert.equal(safe.code,code);assert.ok(safe.message.includes(text));}
 });
 test('导出三类失败标签与页面一致，原文件不覆盖',async()=>{
+  await mkdir(resolve('.test-data'), { recursive: true });
   const directory=await mkdtemp(resolve('.test-data/failure-labels-'));
   assert.equal(spawnSync('python',['-X','utf8','tests/create_assessment_fixtures.py',directory]).status,0);
   const input=join(directory,'input.xlsx');const output=join(directory,'export.xlsx');

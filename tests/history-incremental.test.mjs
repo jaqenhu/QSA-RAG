@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { authenticatedFetch as fetch } from './auth-client.mjs';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createApp } from '../server.mjs';
@@ -10,6 +10,7 @@ import { resultPresentation } from '../backend/assessment.mjs';
 import { startMockProvider, createTestVault } from './mock-provider.mjs';
 
 test('历史快照、增量索引与新导出列验收', async t => {
+ await mkdir(resolve('.test-data'), { recursive: true });
  const directory=await mkdtemp(resolve('.test-data/history-incremental-'));
  for(const script of ['create_fixtures.py','create_assessment_fixtures.py'])assert.equal(spawnSync('python',['-X','utf8',`tests/${script}`,directory]).status,0);
  const patch=spawnSync('python',['-X','utf8','-c',"import sys,openpyxl; p=sys.argv[1]; w=openpyxl.load_workbook(p); s=w.worksheets[0]; s.cell(12,3,None); s['C12']=None; s['B52']='新增质量目标问题'; s['C52']='新增目标说明'; w.save(p)",join(directory,'v2.xlsx')]);assert.equal(patch.status,0);

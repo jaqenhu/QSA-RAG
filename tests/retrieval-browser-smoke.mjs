@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { authenticatedFetch as fetch, authorizeBrowser } from './auth-client.mjs';
-import { mkdtemp,readFile,writeFile } from 'node:fs/promises';
+import { mkdir,mkdtemp,readFile,writeFile } from 'node:fs/promises';
 import { join,resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -8,6 +8,7 @@ import { createApp } from '../server.mjs';
 import { createProviderClient } from '../backend/providers.mjs';
 import { startMockProvider,createTestVault } from './mock-provider.mjs';
 const {chromium}=await import(process.env.QSA_PLAYWRIGHT_MODULE?pathToFileURL(process.env.QSA_PLAYWRIGHT_MODULE).href:'playwright');
+await mkdir(resolve('.test-data'), { recursive: true });
 const directory=await mkdtemp(resolve('.test-data/retrieval-browser-'));
 for(const script of ['create_fixtures.py','create_assessment_fixtures.py'])assert.equal(spawnSync('python',['-X','utf8',`tests/${script}`,directory]).status,0);
 const mock=await startMockProvider();
