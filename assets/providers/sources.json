@@ -1,0 +1,55 @@
+{
+  "package": "@lobehub/icons-static-svg",
+  "version": "1.95.1",
+  "upstream": "https://github.com/lobehub/lobe-icons",
+  "assets": [
+    {
+      "provider": "openai",
+      "packageFile": "package/icons/openai.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/openai.svg",
+      "sha256": "a595df6b423920c67a7f8f73c063e4bfb72d415948097b6cac063a2366bb5186"
+    },
+    {
+      "provider": "bailian",
+      "packageFile": "package/icons/bailian-color.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/bailian-color.svg",
+      "sha256": "5cc26dc961b2ecd0912f4e023c8ce745bcc52ac45b1c4baeadd7201f6b60de25"
+    },
+    {
+      "provider": "volcengine",
+      "packageFile": "package/icons/volcengine-color.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/volcengine-color.svg",
+      "sha256": "84f9e2cd1da7e73dc6c9a0f2521745d39cae96c008752cdb1baf57a8c94393a1"
+    },
+    {
+      "provider": "hunyuan",
+      "packageFile": "package/icons/hunyuan-color.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/hunyuan-color.svg",
+      "sha256": "510e7bb438506b5aadfaf8b9551d1606efd5b4171161a64a64204c72a453658a"
+    },
+    {
+      "provider": "zhipu",
+      "packageFile": "package/icons/zhipu-color.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/zhipu-color.svg",
+      "sha256": "8174e65ff71647d5c705c920c953a82bd723d9e3e42887bdd4ffc9dfe51207a0"
+    },
+    {
+      "provider": "kimi",
+      "packageFile": "package/icons/kimi.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/kimi.svg",
+      "sha256": "ed08131b46acf70e6e2144eceb775e74098b58ea65fa21eaee04be7b05cfe63b"
+    },
+    {
+      "provider": "deepseek",
+      "packageFile": "package/icons/deepseek-color.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/deepseek-color.svg",
+      "sha256": "deba5f98a5c1796e20fcac3149bcd7eb8a32f0bdd04d048819400b1f28bd1439"
+    },
+    {
+      "provider": "siliconcloud",
+      "packageFile": "package/icons/siliconcloud-color.svg",
+      "source": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/siliconcloud-color.svg",
+      "sha256": "a02d8d7ccb81739fbc720e2e5daaf149013dd5088605dc2dce1b71df0784d424"
+    }
+  ]
+}

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f8fa">
+  <meta name="description" content="QSA 本地知识库管理与供应商自评工作台。">
+  <title>供应商自评 · QSA</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="preload" href="./assets/fonts/qsa-sans-sc.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./assets/fonts/qsa-serif-sc.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./auth.js" defer></script>
+</head>
+<body class="auth-locked">
+  <!-- AUTH EXTENSION: Operate. Preserve the existing cool paper, forest green actions,
+  serif headings and native labelled fields. A narrow login form is the only visible
+  surface before authentication; setup asks twice, login asks once. Existing business
+  scripts and data load only after a server-verified administrator session. -->
+  <section class="auth-page" id="auth-page" aria-labelledby="auth-title">
+    <div class="auth-content">
+      <div class="auth-brand"><img src="./assets/images/qsa-assistant.png" alt="" width="56" height="56"><span>QSA<span>供应商自评</span></span></div>
+      <h1 id="auth-title">账号登录</h1>
+      <p id="auth-intro">正在连接本地服务…</p>
+      <form id="auth-form" hidden>
+        <label class="form-field" for="auth-username"><span>账号</span><input id="auth-username" name="username" autocomplete="username" maxlength="64" required></label>
+        <label class="form-field" for="auth-password"><span id="auth-password-label">密码</span><input id="auth-password" name="password" type="password" autocomplete="current-password" maxlength="128" required aria-describedby="auth-password-hint"><small id="auth-password-hint" hidden>12–128 个字符，可使用较长的易记短语。</small></label>
+        <label class="form-field" id="auth-confirm-field" for="auth-confirm" hidden><span>确认密码</span><input id="auth-confirm" name="confirmPassword" type="password" autocomplete="new-password" maxlength="128"></label>
+        <p id="auth-error" class="auth-error" role="alert" hidden></p>
+        <button type="submit" class="button button-primary" id="auth-submit">登录</button>
+      </form>
+      <button type="button" class="button button-outline" id="auth-retry" hidden>重新连接</button>
+      <noscript><p>请启用浏览器 JavaScript 后登录。</p></noscript>
+    </div>
+  </section>
+  <!-- DIRECTION CONTRACT
+  THESIS: An audit review desk that places each question beside its answer and opens the original evidence in the same reading field.
+  OWN-WORLD: Cool paper, dark forest ink, ruled working tables, saturated green actions, serif headings paired with readable sans data, square document geometry and softened controls.
+  STORY: Bring the knowledge workbook and audit sheet together, inspect a proposed answer, trace its evidence, then prepare an output. The supplier assessment uses persisted input rows, verified C-column evidence extracts and an Excel copy export.
+  FIRST VIEWPORT: A 216px quiet navigation rail; a compact header and working title; two horizontal file summaries; one dominant split review surface with a question/answer table and a 312px evidence margin. The selected question is visible alongside its source excerpts.
+  FORM: Quality review ledger, grounded candidate 6, seed 3afa16a7. The table is the primary artifact, and evidence is a persistent annotation margin rather than a separate report.
+  SIGNATURE: Selecting a check item synchronously changes its evidence margin; keyboard focus remains visible, and reduced motion is respected.
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
+  <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Z"/><path d="M12 5v15"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.4 7M3 4v7h7"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.2 8.7a3 3 0 0 1 5.6 1.5c0 2-2.8 2.1-2.8 4M12 17h.01"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H5a1 1 0 0 0-1 1v18a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V8Z"/><path d="M14 2v6h6M8 12h8M8 16h8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="m10 13 4-4M8 16l-2 2a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m4 0 2-2a4 4 0 1 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 0)"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h5m4 0h7M4 17h9m4 0h3"/><circle cx="11" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.6 6.4L21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6Z"/><path d="M20 2v4m-2-2h4"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="5"/><path d="m11.5 11.5 9 9M16 16l3-3m-1 5 3-3"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  </svg>
+
+  <a class="skip-link" href="#main">跳转到工作台</a>
+  <aside class="sidebar" id="sidebar" aria-label="主导航">
+    <a class="brand" href="#supplier" data-view="supplier" aria-label="QSA 首页">
+      <img class="brand-symbol" src="./assets/images/qsa-assistant.png" alt="" width="56" height="56">
+      <span class="brand-name">QSA<span>供应商自评</span></span>
+    </a>
+    <nav class="nav-list">
+      <a class="nav-item active" href="#supplier" data-view="supplier" aria-current="page"><svg class="icon"><use href="#i-grid"/></svg>供应商自评</a>
+      <div class="nav-group"><a class="nav-item nav-parent" href="#knowledge-preview" data-view="knowledge-preview"><svg class="icon"><use href="#i-book"/></svg>知识库</a><div class="nav-subitems" aria-label="知识库"><a href="#knowledge-preview" data-view="knowledge-preview" class="nav-subitem">知识库预览</a><a href="#knowledge-upload" data-view="knowledge-upload" class="nav-subitem">知识库上传</a><a href="#knowledge-training" data-view="knowledge-training" class="nav-subitem">知识库训练</a></div></div>
+      <a class="nav-item" href="#model-settings" data-view="model-settings"><svg class="icon"><use href="#i-key"/></svg>模型配置</a>
+      <a class="nav-item" href="#task-history" data-view="task-history"><svg class="icon"><use href="#i-history"/></svg>任务记录</a>
+    </nav>
+    <div class="sidebar-bottom"><div class="version"><span class="status-dot"></span>QSA<span>v0.6</span></div></div>
+  </aside>
+  <button class="sidebar-scrim" id="sidebar-scrim" aria-label="关闭导航" hidden></button>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="breadcrumb"><button class="icon-button menu-button" id="menu-toggle" aria-label="打开导航" aria-expanded="false" aria-controls="sidebar"><svg class="icon"><use href="#i-menu"/></svg></button><span id="breadcrumb-parent">工作空间</span><svg class="icon"><use href="#i-chevron"/></svg><strong id="breadcrumb-current">供应商自评</strong></div>
+      <div class="topbar-right"><span class="preview-label" id="signed-in-user"></span><span class="topbar-divider"></span><button type="button" class="text-button" id="auth-logout">退出登录</button></div>
+    </header>
+
+    <main id="main" class="workspace-main">
+      <section data-page="supplier" id="supplier-view">
+      <section class="page-heading" aria-labelledby="page-title"><div><h1 id="page-title">供应商自评</h1></div><button id="start-supplier-assessment" class="button button-primary" disabled><svg class="icon"><use href="#i-spark"/></svg>开始填表<svg class="icon"><use href="#i-arrow"/></svg></button></section>
+
+      <div class="record-context" id="supplier-record-context" hidden><span id="supplier-record-label"></span><button type="button" class="text-button" data-view="task-history">返回任务记录<svg class="icon"><use href="#i-arrow"/></svg></button></div>
+      <ol class="workflow" aria-label="填表流程"><li class="workflow-complete"><span class="step-index"><svg class="icon"><use href="#i-check"/></svg></span><span>准备文件</span></li><li class="workflow-complete"><span class="step-index"><svg class="icon"><use href="#i-check"/></svg></span><span>生成自评说明</span></li><li class="workflow-current" aria-current="step"><span class="step-index">3</span><span>核对与导出</span></li></ol>
+
+      <section class="file-section" aria-label="任务文件">
+        <article class="file-card knowledge-file">
+          <div class="file-card-top"><div class="file-identity knowledge-project-identity"><img class="file-icon file-illustration" src="./assets/images/knowledge-library.png" alt="" width="56" height="56"><div class="knowledge-project-field"><label class="field-label" for="supplier-knowledge-project">知识库</label><select class="knowledge-project-select" id="supplier-knowledge-project" data-knowledge-project></select></div></div></div>
+          <div class="file-card-bottom"><div class="sheet-list" id="supplier-knowledge-sheets"></div><span class="file-total" id="supplier-knowledge-total"></span></div>
+        </article>
+        <article class="file-card input-file">
+          <div class="file-card-top"><div class="file-identity"><img class="file-icon file-illustration" src="./assets/images/input-sheet.png" alt="" width="56" height="56"><div><span class="field-label">待填表格</span><h2 id="assessment-input-name">尚未选择待填表</h2></div></div><input type="file" id="assessment-file-input" accept=".xlsx" hidden><button id="choose-assessment-file" class="text-button replace-file"><svg class="icon"><use href="#i-upload"/></svg>更换文件</button></div>
+          <div class="file-card-bottom"><span class="input-meta" id="assessment-input-summary">请选择 .xlsx 待填表</span><span class="file-format">.xlsx</span></div>
+        </article>
+      </section>
+
+      <section class="assessment-controls" aria-label="填表设置">
+        <label class="form-field"><span>生成模型</span><select id="assessment-model"><option value="">请先配置生成模型</option></select></label>
+        <label class="form-field"><span>生成范围</span><select id="assessment-scope"><option value="all">全部问题</option><option value="5">先验证前 5 项</option></select></label>
+        <div class="assessment-actions"><button type="button" class="text-button" id="cancel-assessment" hidden>停止生成</button><button type="button" class="button button-outline" id="retry-assessment" hidden>重试失败项</button></div>
+        <p id="assessment-status" role="status">请先选择待填表</p>
+        <p id="assessment-retrieval-settings" class="field-label" hidden></p>
+        <div class="assessment-progress-wrap" id="assessment-progress-wrap" tabindex="0" aria-label="查看生成进度详情" aria-describedby="assessment-progress-tooltip" hidden><div class="assessment-progress-caption"><span>生成进度</span><span id="assessment-progress-label"></span></div><progress id="assessment-progress" max="1" value="0" aria-label="自评生成进度"></progress><div id="assessment-progress-tooltip" class="assessment-progress-tooltip" role="tooltip" hidden><strong id="assessment-progress-step"></strong><p>准备任务 → 检索依据 → 生成自评 → 校验并保存 → 汇总结果</p><ul id="assessment-progress-items"></ul></div></div>
+      </section>
+      <section id="assessment-overview" class="assessment-overview" aria-labelledby="assessment-overview-title" hidden><h2 id="assessment-overview-title">生成总览</h2><p id="assessment-overview-counts" role="status"></p><p id="assessment-overview-scope" class="field-label" hidden></p><ol id="assessment-failures" class="assessment-failures"></ol></section>
+      <details class="knowledge-import-details" id="assessment-input-details" hidden><summary>待填表明细</summary><div id="assessment-input-info"></div></details>
+      <div class="knowledge-project-empty supplier-generation-empty" id="supplier-generation-empty" hidden><svg class="icon"><use href="#i-file"/></svg><h2 id="supplier-empty-title">尚未生成自评说明</h2><button class="text-button" data-view="knowledge-preview" id="supplier-empty-action">查看知识库<svg class="icon"><use href="#i-arrow"/></svg></button></div>
+      <section class="review-section" id="supplier-review-section" aria-labelledby="review-title">
+        <div class="review-heading"><div class="review-title"><h2 id="review-title">自评说明预览</h2><span class="subtle-badge" id="assessment-result-count">待生成</span></div><div class="review-actions"><button class="button button-quiet" data-panel="rules" aria-label="填表规则"><svg class="icon"><use href="#i-sliders"/></svg><span>填表规则</span></button><button id="export-assessment" class="button button-outline" disabled><svg class="icon"><use href="#i-download"/></svg>导出表格</button></div></div>
+        <div class="review-toolbar"><div class="filter-tabs" role="tablist" aria-label="筛选生成状态"><button class="filter-tab selected" role="tab" aria-selected="true" aria-controls="result-panel" data-filter="all">全部<span>6</span></button><button class="filter-tab" role="tab" aria-selected="false" aria-controls="result-panel" data-filter="direct">可直接复用<span>2</span></button><button class="filter-tab" role="tab" aria-selected="false" aria-controls="result-panel" data-filter="partial">部分有依据<span>3</span></button><button class="filter-tab" role="tab" aria-selected="false" aria-controls="result-panel" data-filter="missing">无相关信息<span>0</span></button><button class="filter-tab" role="tab" aria-selected="false" aria-controls="result-panel" data-filter="failed">生成失败<span>0</span></button></div><label class="search-box"><svg class="icon"><use href="#i-search"/></svg><input id="question-search" type="search" placeholder="搜索检查项" aria-label="搜索检查项"></label></div>
+        <div class="review-content">
+          <div class="result-panel" id="result-panel" role="tabpanel" aria-label="自评说明表格"><div class="table-scroll"><table class="result-table"><colgroup><col class="number-col"><col class="question-col"><col class="answer-col"><col class="basis-col"><col class="details-col"><col class="source-col"></colgroup><thead><tr><th scope="col" class="number-heading">序号</th><th scope="col">检查内容</th><th scope="col">自评说明</th><th scope="col">依据</th><th scope="col">详细说明</th><th scope="col">来源<svg class="icon"><use href="#i-link"/></svg></th></tr></thead><tbody id="results-body"></tbody></table><div class="search-empty" id="search-empty" hidden><svg class="icon"><use href="#i-search"/></svg><strong>无匹配内容</strong><button class="text-button" id="clear-search">清除筛选</button></div></div><div class="table-footer"><span id="table-count">0 项</span><span id="assessment-total-count">0 项问题</span></div></div>
+          <aside class="evidence-panel" id="evidence-panel" aria-labelledby="evidence-title"><div class="evidence-heading"><div><svg class="icon"><use href="#i-link"/></svg><h3 id="evidence-title">证据溯源</h3></div><span id="evidence-number">检查项 04</span></div><div id="evidence-content" aria-live="polite"></div></aside>
+        </div>
+      </section>
+      </section>
+
+      <section data-page="knowledge-preview" id="knowledge-preview-view" hidden>
+        <div class="page-heading knowledge-page-heading"><h1>知识库预览</h1><button class="button button-primary" data-view="knowledge-upload"><svg class="icon"><use href="#i-upload"/></svg>上传知识库</button></div>
+        <nav class="knowledge-tabs" aria-label="知识库板块"><a href="#knowledge-preview" data-view="knowledge-preview">知识库预览</a><a href="#knowledge-upload" data-view="knowledge-upload">知识库上传</a><a href="#knowledge-training" data-view="knowledge-training">知识库训练</a></nav>
+        <div class="knowledge-service-message" id="knowledge-service-message" role="alert" hidden><span></span><button type="button" class="text-button" id="retry-knowledge-load">重新加载</button></div>
+        <div class="knowledge-file-strip"><div class="file-identity knowledge-project-identity"><img class="file-icon file-illustration" src="./assets/images/knowledge-library.png" alt="" width="56" height="56"><div class="knowledge-project-field"><label class="field-label" for="preview-knowledge-project">知识库项目</label><select class="knowledge-project-select" id="preview-knowledge-project" data-knowledge-project></select><span class="field-label" id="knowledge-project-summary"></span></div></div><div class="knowledge-project-actions"><span class="subtle-badge" id="knowledge-version-label">本地保存</span><button type="button" class="text-button" id="show-knowledge-diagnostics">导入明细</button><button type="button" class="text-button danger-text" id="delete-knowledge-project"><svg class="icon"><use href="#i-trash"/></svg>删除知识库</button></div></div>
+        <div class="knowledge-undo-bar" id="knowledge-undo-bar" role="status" hidden><span id="knowledge-undo-message"></span><button type="button" class="text-button" id="undo-knowledge-delete">撤销删除</button></div>
+        <div class="knowledge-project-empty" id="knowledge-project-empty" hidden><svg class="icon"><use href="#i-book"/></svg><h2>暂无知识库项目</h2><button class="button button-outline" data-view="knowledge-upload"><svg class="icon"><use href="#i-upload"/></svg>上传知识库</button></div>
+        <section class="knowledge-table-panel" id="knowledge-table-panel" aria-label="知识记录"><div class="knowledge-table-toolbar"><div id="knowledge-sheet-tabs" class="knowledge-sheet-tabs" role="tablist" aria-label="工作表"></div><label class="knowledge-missing-filter"><input type="checkbox" id="knowledge-missing-only">仅缺少说明</label><label class="search-box"><svg class="icon"><use href="#i-search"/></svg><input type="search" id="knowledge-search" placeholder="搜索审核项目" aria-label="搜索审核项目" maxlength="200"></label></div><div class="knowledge-table-scroll"><table class="knowledge-table"><colgroup><col class="knowledge-row-col"><col class="knowledge-question-col"><col></colgroup><thead><tr><th scope="col">原始行号</th><th scope="col">审核项目</th><th scope="col">自评说明</th></tr></thead><tbody id="knowledge-records"></tbody></table><div class="knowledge-empty" id="knowledge-empty" role="status" hidden>无匹配内容</div></div><div class="table-footer knowledge-pagination"><span id="knowledge-preview-count" aria-live="polite"></span><div><button type="button" class="text-button" id="knowledge-prev-page">上一页</button><span id="knowledge-page-label"></span><button type="button" class="text-button" id="knowledge-next-page">下一页</button></div><span id="knowledge-total-count"></span></div></section>
+        <details class="knowledge-import-details" id="knowledge-saved-diagnostics" hidden><summary>导入明细与历史版本</summary><div id="knowledge-saved-details"></div></details>
+      </section>
+
+      <section data-page="knowledge-upload" id="knowledge-upload-view" hidden>
+        <div class="page-heading knowledge-page-heading"><h1>知识库上传</h1></div>
+        <nav class="knowledge-tabs" aria-label="知识库板块"><a href="#knowledge-preview" data-view="knowledge-preview">知识库预览</a><a href="#knowledge-upload" data-view="knowledge-upload">知识库上传</a><a href="#knowledge-training" data-view="knowledge-training">知识库训练</a></nav>
+        <div class="upload-layout"><section class="upload-panel"><h2>上传文件</h2><div class="upload-dropzone" id="knowledge-dropzone"><span class="upload-document"><svg class="icon"><use href="#i-upload"/></svg></span><h3 id="knowledge-upload-filename">知识库文件</h3><span class="upload-format">.xlsx · 最大 20 MB · 支持拖入</span><input type="file" id="knowledge-file-input" accept=".xlsx" hidden><button type="button" class="button button-primary" id="choose-knowledge-file"><svg class="icon"><use href="#i-plus"/></svg>选择文件</button></div><p id="knowledge-upload-status" class="upload-status" role="status" aria-live="polite">请选择知识库文件</p><div id="knowledge-upload-preview" hidden></div><div class="upload-options"><label><input type="radio" name="upload-mode" value="replace">替换当前知识库</label><label><input type="radio" name="upload-mode" value="new" checked>新建知识库</label></div><label class="form-field upload-project-field" id="knowledge-new-name-field"><span>知识库名称</span><input id="knowledge-new-name" type="text" maxlength="100" placeholder="默认使用文件名"></label><div class="upload-replace-target" id="knowledge-replace-target" hidden><label class="form-field"><span>替换目标</span><select id="upload-knowledge-project" data-knowledge-project></select></label><span id="knowledge-replace-version"></span></div><div class="panel-action-row"><button type="button" class="button button-primary" id="confirm-knowledge-upload" disabled>确认上传</button></div></section><aside class="current-knowledge-panel"><h2>当前知识库</h2><p class="no-source">正在读取本地知识库</p></aside></div>
+      </section>
+
+      <section data-page="knowledge-training" id="knowledge-training-view" hidden>
+        <div class="page-heading knowledge-page-heading"><h1>知识库训练</h1><span class="training-status" id="training-overall-status">未训练</span></div>
+        <nav class="knowledge-tabs" aria-label="知识库板块"><a href="#knowledge-preview" data-view="knowledge-preview">知识库预览</a><a href="#knowledge-upload" data-view="knowledge-upload">知识库上传</a><a href="#knowledge-training" data-view="knowledge-training">知识库训练</a></nav>
+        <div class="knowledge-service-message" id="training-message" role="status" hidden><span></span><button type="button" class="text-button" id="reload-training">刷新状态</button></div>
+        <div class="training-layout">
+          <form class="training-config-panel" id="training-form">
+            <h2>训练配置</h2>
+            <div class="training-fields">
+              <label class="form-field"><span>任务名称</span><input id="training-name" type="text" value="供应商审核知识库" required maxlength="60"></label>
+              <label class="form-field"><span>训练数据</span><select id="training-knowledge" aria-label="训练数据知识库"></select></label>
+              <div class="linked-knowledge full-field"><svg class="icon"><use href="#i-book"/></svg><span id="linked-knowledge-summary">4 张工作表 · 1,955 条记录</span><button class="text-button" type="button" data-view="knowledge-preview">预览知识库<svg class="icon"><use href="#i-arrow"/></svg></button></div>
+              <div class="form-field full-field"><div class="field-heading"><label for="training-embedding">向量模型</label><button class="text-button" type="button" data-configure-model="embedding">模型配置<svg class="icon"><use href="#i-arrow"/></svg></button></div><select id="training-embedding" required aria-label="训练向量模型"></select></div>
+              <fieldset class="sheet-checkboxes full-field" id="training-sheets"><legend>工作表范围</legend></fieldset>
+            </div>
+            <div class="training-section"><h3>数据处理</h3><div class="training-fields">
+              <label class="form-field"><span>导入方式</span><select id="training-import"><option value="qa">逐行问答导入</option></select></label>
+              <div class="form-field"><div class="update-mode-label"><label for="training-update">更新方式</label><span class="update-help" id="update-mode-help"><button type="button" class="update-help-button" id="update-mode-help-button" aria-label="查看更新方式说明" aria-describedby="update-mode-tooltip"><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button><div class="update-help-tooltip" id="update-mode-tooltip" role="tooltip" hidden><section><strong>增量更新</strong><p>保留现有索引，仅处理新增或发生变化的问答，复用未变化的数据。适合日常补充、修订知识库，通常处理更快、模型调用量更少。</p></section><section><strong>重建索引</strong><p>重新处理当前所选知识库和工作表内的全部问答，重新计算向量并替换原索引。适合首次建库、更换向量模型或调整导入规则，处理量和耗时通常更高。</p></section><p class="update-mode-difference">主要区别：增量只处理变化，重建处理全部。更换向量模型时应重建索引，避免新旧向量混用。</p></div></span></div><select id="training-update"><option value="rebuild">重建索引</option><option value="incremental">增量更新</option></select></div>
+              <div class="column-mapping full-field"><span>B 列 · 检查内容</span><svg class="icon"><use href="#i-arrow"/></svg><span>C 列 · 自评说明</span></div>
+              <div class="import-constraints full-field"><span><svg class="icon"><use href="#i-check-circle"/></svg>保留 Sheet 与原始行号</span><span><svg class="icon"><use href="#i-check-circle"/></svg>忽略 D 列备注</span><span><svg class="icon"><use href="#i-check-circle"/></svg>过滤空白问答</span></div>
+            </div></div>
+            <details class="retrieval-settings"><summary>检索设置<svg class="icon"><use href="#i-down"/></svg></summary><div class="training-fields">
+              <label class="form-field"><span>检索方式</span><select id="training-retrieval"><option value="hybrid">混合检索</option><option value="vector">向量检索</option><option value="keyword">关键词检索</option></select></label>
+              <label class="form-field"><span>融合策略</span><select id="training-fusion"><option value="rrf">RRF 排名融合</option><option value="weighted">加权融合</option></select></label>
+              <label class="form-field"><span>向量召回 Top K</span><input id="training-vector-top-k" type="number" value="20" min="1" max="100" required></label>
+              <label class="form-field"><span>BM25 召回 Top K</span><input id="training-bm25-top-k" type="number" value="20" min="1" max="100" required></label>
+              <label class="form-field"><span>RRF k</span><input id="training-rrf-k" type="number" value="60" min="1" max="1000" required></label>
+              <label class="form-field"><span>重排模型 · 可选</span><select id="training-rerank" aria-label="检索重排模型"></select></label>
+              <label class="form-field"><span>重排候选上限</span><input id="training-rerank-candidates" type="number" value="40" min="1" max="200" required></label>
+              <label class="form-field"><span>重排返回 Top N</span><input id="training-rerank-top-n" type="number" value="8" min="1" max="50" required></label>
+              <label class="form-field"><span>重排得分阈值</span><input id="training-rerank-threshold" type="number" value="0.5" min="0" max="1" step="0.05" required></label>
+              <label class="form-field"><span>返回条数 · 不重排</span><input id="training-top-k" type="number" value="8" min="1" max="50" required></label>
+              <label class="form-field"><span>相似度阈值 · 不重排</span><input id="training-threshold" type="number" value="0.5" min="0" max="1" step="0.05" required></label>
+            </div><p class="retrieval-parameter-note" id="training-parameter-note"></p><div class="panel-action-row retrieval-save-actions"><span id="retrieval-save-status" class="field-label" role="status">保存后用于新自评，无需重建向量</span><button type="button" class="button button-outline" id="save-retrieval-settings">保存检索设置</button></div></details>
+            <div class="panel-action-row training-actions"><span id="training-selection-summary">已选 4 张表 · 1,955 条</span><button class="button button-primary" id="start-knowledge-training" type="submit"><svg class="icon"><use href="#i-spark"/></svg>开始训练</button></div>
+          </form>
+          <aside class="training-task-panel"><h2>训练任务</h2><dl class="knowledge-facts"><div><dt>当前状态</dt><dd id="training-task-status">未开始</dd></div><div><dt>训练数据</dt><dd id="training-task-total">0 条</dd></div><div><dt>向量模型</dt><dd id="training-task-model">—</dd></div><div><dt>开始时间</dt><dd id="training-task-start">—</dd></div></dl><progress class="training-progress" id="training-progress" value="0" max="1" hidden></progress><span class="training-progress-text" id="training-progress-text"></span><ol class="training-stages"><li><span>1</span><div>数据校验<small>未开始</small></div></li><li><span>2</span><div>问答入库<small>未开始</small></div></li><li><span>3</span><div>向量索引<small>未开始</small></div></li><li><span>4</span><div>检索验证<small>未开始</small></div></li></ol><p id="training-job-error" class="training-job-error" role="status" hidden></p><button type="button" class="button button-outline" id="cancel-knowledge-training" hidden>取消训练</button></aside>
+        </div>
+        <section class="training-retrieval-panel" aria-labelledby="retrieval-title"><div class="model-section-heading"><h2 id="retrieval-title">检索验证</h2><span id="retrieval-index-summary" class="field-label">尚未建立索引</span></div><form id="retrieval-form"><label class="form-field"><span>检索问题</span><textarea id="retrieval-query" rows="3" required maxlength="2000" placeholder="输入实际审核问题，查看召回原文与来源"></textarea></label><div class="retrieval-query-settings">
+          <label class="form-field"><span>检索方式</span><select id="retrieval-method"><option value="hybrid">混合检索</option><option value="vector">向量检索</option><option value="keyword">关键词检索</option></select></label>
+          <label class="form-field"><span>融合策略</span><select id="retrieval-fusion"><option value="rrf">RRF 排名融合</option><option value="weighted">加权融合</option></select></label>
+          <label class="form-field"><span>向量召回 Top K</span><input id="retrieval-vector-top-k" type="number" value="20" min="1" max="100" required></label>
+          <label class="form-field"><span>BM25 召回 Top K</span><input id="retrieval-bm25-top-k" type="number" value="20" min="1" max="100" required></label>
+          <label class="form-field"><span>RRF k</span><input id="retrieval-rrf-k" type="number" value="60" min="1" max="1000" required></label>
+          <label class="form-field"><span>重排模型 · 可选</span><select id="retrieval-rerank"><option value="">不使用重排模型</option></select></label>
+          <label class="form-field"><span>重排候选上限</span><input id="retrieval-rerank-candidates" type="number" value="40" min="1" max="200" required></label>
+          <label class="form-field"><span>重排返回 Top N</span><input id="retrieval-rerank-top-n" type="number" value="8" min="1" max="50" required></label>
+          <label class="form-field"><span>重排得分阈值</span><input id="retrieval-rerank-threshold" type="number" value="0.5" min="0" max="1" step="0.05" required></label>
+          <label class="form-field"><span>返回条数 · 不重排</span><input id="retrieval-top-k" type="number" value="8" min="1" max="50" required></label>
+          <label class="form-field"><span>相似度阈值 · 不重排</span><input id="retrieval-score-threshold" type="number" value="0.5" min="0" max="1" step="0.05" required></label>
+        </div><p class="retrieval-parameter-note" id="retrieval-parameter-note"></p><div class="panel-action-row"><span id="retrieval-status" class="field-label" role="status"></span><button type="submit" class="button button-primary" id="run-retrieval" disabled>开始检索</button></div></form><div id="retrieval-results" class="retrieval-results"></div></section>
+      </section>
+
+      <section data-page="model-settings" id="model-settings-view" hidden>
+        <div class="page-heading knowledge-page-heading"><h1>模型配置</h1><button type="button" class="button button-primary" data-add-model="bailian"><svg class="icon"><use href="#i-plus"/></svg>添加模型</button></div>
+        <div class="knowledge-service-message" id="models-service-message" role="status" hidden><span></span><button type="button" class="text-button" id="reload-models">重新加载</button></div>
+        <section class="model-config-section" aria-labelledby="configured-models-title">
+          <div class="model-section-heading"><h2 id="configured-models-title">已配置模型</h2><span class="subtle-badge" id="configured-models-count">正在加载</span></div>
+          <div class="models-toolbar"><div class="model-type-tabs" role="tablist" aria-label="筛选模型类型"><button type="button" role="tab" aria-selected="true" class="selected" data-model-filter="all">全部<span>3</span></button><button type="button" role="tab" aria-selected="false" data-model-filter="generation">生成<span>1</span></button><button type="button" role="tab" aria-selected="false" data-model-filter="embedding">向量<span>1</span></button><button type="button" role="tab" aria-selected="false" data-model-filter="rerank">重排<span>1</span></button></div><label class="search-box"><svg class="icon"><use href="#i-search"/></svg><input id="model-search" type="search" placeholder="搜索模型或服务商" aria-label="搜索模型或服务商"></label></div>
+          <div class="model-table-scroll"><table class="model-table"><thead><tr><th scope="col">模型</th><th scope="col">服务商</th><th scope="col">类型</th><th scope="col">API Key</th><th scope="col">操作</th></tr></thead><tbody id="configured-models"></tbody></table></div>
+          <div id="models-empty" class="models-empty" hidden><svg class="icon"><use href="#i-key"/></svg><strong>暂无匹配的模型配置</strong><button type="button" class="text-button" data-add-model="custom">添加模型<svg class="icon"><use href="#i-plus"/></svg></button></div>
+        </section>
+        <section class="available-providers" aria-labelledby="available-providers-title"><h2 id="available-providers-title">可用服务商</h2><div class="provider-list" id="available-provider-list"></div></section>
+      </section>
+
+      <section data-page="task-history" id="task-history-view" hidden>
+        <div class="page-heading knowledge-page-heading"><h1>任务记录</h1><button type="button" class="button button-primary" data-view="supplier"><svg class="icon"><use href="#i-plus"/></svg>新建自评</button></div>
+        <div class="model-section-heading"><h2 class="records-section-title">供应商自评生成记录</h2><span class="subtle-badge" id="task-records-count">0 条记录</span></div>
+        <section class="task-records-panel" aria-label="供应商自评生成记录">
+          <div class="records-toolbar"><div class="record-state-tabs" role="tablist" aria-label="筛选自评任务状态"><button type="button" role="tab" aria-selected="true" class="selected" data-task-filter="all">全部<span>0</span></button><button type="button" role="tab" aria-selected="false" data-task-filter="success">生成成功<span>0</span></button><button type="button" role="tab" aria-selected="false" data-task-filter="partial_success">生成成功，部分需审核<span>0</span></button><button type="button" role="tab" aria-selected="false" data-task-filter="failed">生成失败<span>0</span></button></div><div class="records-filters"><select id="task-date-filter" aria-label="筛选生成日期"><option value="all">全部时间</option></select><label class="search-box"><svg class="icon"><use href="#i-search"/></svg><input id="task-search" type="search" placeholder="搜索任务或输入文件" aria-label="搜索任务或输入文件"></label></div></div>
+          <div id="task-delete-feedback" class="task-delete-feedback" role="status" hidden><span id="task-delete-feedback-text"></span><button type="button" class="text-button" id="undo-task-delete">撤销删除</button></div>
+          <p id="task-records-status" class="upload-status" role="status"></p><div class="task-records-scroll"><table class="task-records-table"><thead><tr><th scope="col">任务 / 输入表</th><th scope="col">知识库</th><th scope="col">生成结果</th><th scope="col">状态</th><th scope="col">生成时间</th><th scope="col">操作</th></tr></thead><tbody id="task-records-body"></tbody></table></div>
+          <div class="records-empty" id="task-records-empty" hidden><svg class="icon"><use href="#i-history"/></svg><strong>暂无匹配的生成记录</strong><button type="button" class="text-button" id="reset-task-filters">清除筛选</button></div>
+          <div class="table-footer"><span id="task-records-visible">显示 0 条</span><div class="record-pagination"><button type="button" class="text-button" id="task-records-prev">上一页</button><span id="task-records-page">1 / 1</span><button type="button" class="text-button" id="task-records-next">下一页</button></div></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+
+
+  <dialog id="task-detail-dialog" class="task-detail-dialog" aria-labelledby="task-detail-title"><div class="dialog-heading"><h2 id="task-detail-title">生成记录</h2><button type="button" class="icon-button" id="close-task-detail" aria-label="关闭生成记录"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="task-detail-content"></div></dialog>
+  <dialog id="delete-task-dialog" class="delete-knowledge-dialog" aria-labelledby="delete-task-title" aria-describedby="delete-task-description"><form method="dialog"><div class="dialog-heading"><h2 id="delete-task-title">删除任务记录？</h2><button type="submit" class="icon-button" aria-label="取消删除任务"><svg class="icon"><use href="#i-close"/></svg></button></div><strong id="delete-task-name"></strong><p id="delete-task-id" class="record-id"></p><p id="delete-task-description">将移除此任务记录及结果入口，可撤销删除。原表、知识库和其他任务保留。</p><p id="delete-task-error" class="record-error" role="status"></p><div class="delete-knowledge-actions"><button type="submit" class="button button-outline" autofocus>取消</button><button type="button" class="button button-danger" id="confirm-task-delete">删除记录</button></div></form></dialog>
+
+  <dialog id="model-dialog" class="model-dialog" aria-labelledby="model-dialog-title">
+    <form id="model-config-form" autocomplete="off">
+      <div class="dialog-heading"><h2 id="model-dialog-title">添加模型</h2><button class="icon-button" type="button" data-close-model-dialog aria-label="关闭模型配置"><svg class="icon"><use href="#i-close"/></svg></button></div>
+      <div class="model-form-fields">
+        <label class="form-field"><span>服务商</span><select id="model-provider"><option value="bailian">阿里云百炼</option><option value="deepseek">DeepSeek</option><option value="siliconflow">硅基流动</option><option value="ollama">Ollama</option><option value="custom">自定义兼容服务</option></select></label>
+        <label class="form-field"><span>模型类型</span><select id="model-type"><option value="generation">生成模型</option><option value="embedding">向量模型</option><option value="rerank">重排模型</option></select></label>
+        <label class="form-field full-field"><span>显示名称</span><input id="model-display-name" type="text" placeholder="例如：审核向量模型" required maxlength="50"></label>
+        <label class="form-field full-field"><span>模型 ID</span><input id="model-id" type="text" placeholder="服务商提供的模型标识" required maxlength="140" spellcheck="false"></label>
+        <label class="form-field full-field"><span>API Base URL</span><input id="model-base-url" type="url" placeholder="https://your-model-service.com/v1" required spellcheck="false" maxlength="300"></label>
+        <label class="form-field full-field" id="model-dimensions-field" hidden><span>向量维度 · 可选</span><input id="model-dimensions" type="number" min="1" max="8192" placeholder="留空使用模型默认值"></label>
+        <div class="form-field full-field"><label for="model-api-key">API Key</label><div class="secret-input"><input id="model-api-key" type="password" placeholder="仅在本机输入，使用 Windows 用户加密保存" autocomplete="new-password" spellcheck="false"><button class="icon-button" type="button" id="toggle-model-key" aria-label="显示 API Key" aria-pressed="false"><svg class="icon"><use href="#i-eye"/></svg></button></div></div>
+        <label class="default-model-option full-field" id="model-clear-key-field" hidden><input id="model-clear-key" type="checkbox">移除已保存密钥</label>
+        <label class="default-model-option full-field"><input id="model-is-default" type="checkbox">设为该类型的默认模型</label>
+      </div>
+      <p class="connection-preview-status" id="model-connection-status" role="status" hidden></p>
+      <div class="model-form-actions"><button type="button" class="button button-outline" id="test-model-connection">测试连接</button><span></span><button type="button" class="button button-quiet" data-close-model-dialog>取消</button><button type="submit" class="button button-primary">保存配置</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="delete-model-dialog" class="delete-knowledge-dialog" aria-labelledby="delete-model-title"><form method="dialog"><div class="dialog-heading"><h2 id="delete-model-title">删除模型？</h2></div><strong id="delete-model-name"></strong><p>该模型的密钥将移除，使用该向量模型的索引需重新配置。</p><div class="delete-knowledge-actions"><button type="submit" class="button button-outline" autofocus>取消</button><button type="button" class="button button-danger" id="confirm-model-delete">删除模型</button></div></form></dialog>
+  <dialog id="delete-knowledge-dialog" class="delete-knowledge-dialog" aria-labelledby="delete-knowledge-title" aria-describedby="delete-knowledge-description"><form method="dialog"><div class="dialog-heading"><h2 id="delete-knowledge-title">删除知识库？</h2><button type="submit" class="icon-button" aria-label="取消删除"><svg class="icon"><use href="#i-close"/></svg></button></div><strong id="delete-knowledge-name"></strong><p id="delete-knowledge-description">将从项目列表中移除，文件和历史版本保留，可撤销删除。</p><div class="delete-knowledge-actions"><button type="submit" class="button button-outline" autofocus>取消</button><button type="button" class="button button-danger" id="confirm-knowledge-delete">删除知识库</button></div></form></dialog>
+  <dialog id="information-dialog" aria-labelledby="dialog-title"><div class="dialog-heading"><div><h2 id="dialog-title">知识库</h2></div><button class="icon-button" id="dialog-close" aria-label="关闭"><svg class="icon"><use href="#i-close"/></svg></button></div><div id="dialog-content"></div></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"><svg class="icon"><use href="#i-info"/></svg><span></span></div>
+</body>
+</html>

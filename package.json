@@ -1,0 +1,18 @@
+{
+  "name": "qsa-local",
+  "version": "0.6.0",
+  "private": true,
+  "description": "QSA 本地知识库管理与自评工作台",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "node server.mjs",
+    "check": "node --check auth.js && node --check backend/auth.mjs && node --check app.js && node --check knowledge.js && node --check models.js && node --check training.js && node --check settings.js && node --check records.js && node --check server.mjs && node --check backend/store.mjs && node --check backend/models.mjs && node --check backend/providers.mjs && node --check backend/indexer.mjs && node --check backend/vault.mjs && node --check backend/retrieval.mjs && node --check backend/service-lease.mjs && node --check assessment.js && node --check backend/assessment.mjs && node --check backend/retrieval-config.mjs && node --check backend/assessment-output.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.71",
+    "ai": "^7.0.143"
+  }
+}
