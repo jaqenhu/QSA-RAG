@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { authenticatedFetch as fetch, authorizeBrowser } from './auth-client.mjs';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -18,7 +17,6 @@ const base=`http://127.0.0.1:${app.server.address().port}`;
 async function api(path,data,method='POST'){const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await response.json();assert.ok(response.ok,result.error);return result;}
 const browser=await chromium.launch({headless:true,channel:'msedge'});
 const page=await browser.newPage({viewport:{width:1440,height:1000},acceptDownloads:true});
-await authorizeBrowser(page, base);
 const errors=[];page.on('pageerror',error=>errors.push(error.message));
 try{
  const imported=await(await fetch(base+'/api/knowledge/imports',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-File-Name':'v1.xlsx'},body:await readFile(join(directory,'v1.xlsx'))})).json();

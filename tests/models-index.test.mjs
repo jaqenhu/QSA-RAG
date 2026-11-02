@@ -1,5 +1,4 @@
 import test from 'node:test';
-import { authenticatedFetch as fetch } from './auth-client.mjs';
 import assert from 'node:assert/strict';
 import { readFile, mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { resolve, join, sep } from 'node:path';

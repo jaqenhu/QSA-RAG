@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { authenticatedFetch as fetch, authorizeBrowser } from './auth-client.mjs';
 import { mkdir,mkdtemp,readFile,writeFile } from 'node:fs/promises';
 import { join,resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -17,7 +16,6 @@ await new Promise(done=>app.server.listen(0,'127.0.0.1',done));const base=`http:
 async function api(path,data,method='POST'){const response=await fetch(base+path,{method,...(data===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})});const value=await response.json();assert.ok(response.ok,value.error);return value;}
 const browser=await chromium.launch({headless:true,channel:'msedge'});
 const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});const errors=[];page.on('pageerror',e=>errors.push(e.message));
-await authorizeBrowser(page, base);
 try {
  const draft=await(await fetch(base+'/api/knowledge/imports',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-File-Name':'v1.xlsx'},body:await readFile(join(directory,'v1.xlsx'))})).json();
  const {project}=await api(`/api/knowledge/imports/${draft.importId}/commit`,{mode:'new'});

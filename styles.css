@@ -52,21 +52,6 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 input { caret-color: var(--green); }
 ::selection { color: #163f2e; background: #dcece2; }
 [hidden] { display: none !important; }
-body.auth-locked > :not(.auth-page):not(script) { display: none !important; }
-.auth-page { min-height: 100dvh; display: grid; place-items: center; padding: 40px 24px; }
-.auth-content { width: min(100%, 380px); }
-.auth-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 38px; }
-.auth-brand > span { font-family: Georgia, serif; font-size: 28px; font-weight: 700; line-height: 1.2; }
-.auth-brand > span > span { display: block; font-family: var(--font); font-size: 13px; font-weight: 400; margin-top: 6px; }
-.auth-content h1 { margin: 0 0 10px; font-family: var(--font-serif); font-size: 26px; }
-.auth-content > p { color: var(--secondary); margin: 0 0 28px; }
-.auth-content form { display: grid; gap: 20px; }
-.auth-content .form-field input { width: 100%; min-height: 44px; font-size: 16px; }
-.auth-content input:focus-visible { outline-color: var(--green); }
-.auth-content .form-field small { color: var(--secondary); font-size: 12px; }
-.auth-content .auth-error { color: #9c2929; margin: 0; overflow-wrap: anywhere; }
-.auth-content button[type="submit"] { width: 100%; min-height: 44px; justify-content: center; margin-top: 4px; }
-@media (max-width: 599px) { .auth-page { place-items: start center; padding-top: 12dvh; } }
 .svg-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .icon { display: inline-block; width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
 .skip-link { position: fixed; top: -70px; left: 20px; z-index: 100; padding: 10px 16px; background: var(--surface); border: 1px solid var(--green); border-radius: 6px; }

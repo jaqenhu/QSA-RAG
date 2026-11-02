@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { authenticatedFetch as fetch, authorizeBrowser } from './auth-client.mjs';
 import { mkdtemp, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -20,7 +19,6 @@ await new Promise(done => app.server.listen(0, '127.0.0.1', done));
 const base = `http://127.0.0.1:${app.server.address().port}`;
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
-await authorizeBrowser(page, base);
 const errors = [], checks = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('response', response => { if (response.status() >= 400) console.log(JSON.stringify({ status: response.status(), path: new URL(response.url()).pathname })); });

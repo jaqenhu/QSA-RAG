@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { authenticatedFetch as fetch, authorizeBrowser } from './auth-client.mjs';
 import { pathToFileURL } from 'node:url';
 import { resolve, join } from 'node:path';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -17,7 +16,6 @@ await new Promise(done => app.server.listen(0, '127.0.0.1', done));
 const base = `http://127.0.0.1:${app.server.address().port}`;
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-await authorizeBrowser(page, base);
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 const screenshots = resolve('.impeccable/review');
@@ -82,6 +80,7 @@ try {
   assert.match(await page.locator('#knowledge-saved-details').textContent(), /v2.*v1/s);
   await page.locator('#knowledge-saved-diagnostics').evaluate(element => { element.open = false; });
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => document.getElementById('sidebar').getBoundingClientRect().right <= 0);
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: join(screenshots, 'v10-preview-mobile.png') });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
@@ -90,6 +89,7 @@ try {
   assert.match(await page.locator('#knowledge-records').textContent(), /隐藏表问题/);
   await page.locator('#menu-toggle').click();
   await page.locator('.nav-subitems [data-view="knowledge-upload"]').click();
+  await page.waitForFunction(() => document.getElementById('sidebar').getBoundingClientRect().right <= 0);
   await page.screenshot({ path: join(screenshots, 'v10-upload-mobile.png') });
   await chooseAndParse('v2.xlsx');
   await page.locator('input[name="upload-mode"][value="replace"]').check();

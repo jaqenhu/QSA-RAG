@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { authenticatedFetch as fetch, authorizeBrowser } from './auth-client.mjs';
 import { pathToFileURL } from 'node:url';
 import { resolve, join } from 'node:path';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -17,7 +16,6 @@ await new Promise(done => app.server.listen(0, '127.0.0.1', done));
 const base = `http://127.0.0.1:${app.server.address().port}`;
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-await authorizeBrowser(page, base);
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 const screenshots = resolve('.impeccable/review'); await mkdir(screenshots, { recursive: true });
 async function go(hash) { await page.goto(base + '/#' + hash); await page.waitForFunction(() => document.getElementById('configured-models-count').textContent.includes('个模型')); }

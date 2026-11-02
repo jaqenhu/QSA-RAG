@@ -22,7 +22,7 @@ const uploadStatus = document.getElementById("knowledge-upload-status");
 async function knowledgeApi(path, options = {}) {
   let response;
   try { response = await fetch(path, { ...options, signal: AbortSignal.timeout(75000) }); }
-  catch { throw new Error(location.protocol === "file:" ? "请启动本地服务，并通过 http://127.0.0.1:4173 打开页面。" : "本地服务未响应，请确认服务正在运行后重试。"); }
+  catch { throw new Error(location.protocol === "file:" ? "请启动本地服务，并通过 http://127.0.0.1:4174 打开页面。" : "本地服务未响应，请确认服务正在运行后重试。"); }
   let data;
   try { data = await response.json(); } catch { throw new Error("服务响应格式无效，请确认已启动新版 QSA 服务。"); }
   if (!response.ok) throw new Error(data.error || "操作失败，请重试。");

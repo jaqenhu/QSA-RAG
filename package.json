@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "node server.mjs",
-    "check": "node --check auth.js && node --check backend/auth.mjs && node --check app.js && node --check knowledge.js && node --check models.js && node --check training.js && node --check settings.js && node --check records.js && node --check server.mjs && node --check backend/store.mjs && node --check backend/models.mjs && node --check backend/providers.mjs && node --check backend/indexer.mjs && node --check backend/vault.mjs && node --check backend/retrieval.mjs && node --check backend/service-lease.mjs && node --check assessment.js && node --check backend/assessment.mjs && node --check backend/retrieval-config.mjs && node --check backend/assessment-output.mjs",
+    "check": "node --check app.js && node --check knowledge.js && node --check models.js && node --check training.js && node --check settings.js && node --check records.js && node --check server.mjs && node --check backend/store.mjs && node --check backend/models.mjs && node --check backend/providers.mjs && node --check backend/indexer.mjs && node --check backend/vault.mjs && node --check backend/retrieval.mjs && node --check backend/service-lease.mjs && node --check assessment.js && node --check backend/assessment.mjs && node --check backend/retrieval-config.mjs && node --check backend/assessment-output.mjs && node --check backend/retire-accounts.mjs && node --check scripts/start.mjs",
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
