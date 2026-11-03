@@ -1,7 +1,8 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { createKnowledgeFiles } from './knowledge-files.mjs';
 
 export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -28,14 +29,27 @@ export function createStore(directory) {
     try { const value = fn(); db.exec('COMMIT'); return value; }
     catch (error) { db.exec('ROLLBACK'); throw error; }
   };
+  const documents = createKnowledgeFiles(db, transaction, ApiError);
+  function cleanupPurgedFiles() {
+    for(const {file_id:fileId} of db.prepare('SELECT file_id FROM knowledge_file_cleanup').all()) {
+      if(!/^[a-f0-9-]{36}$/.test(fileId))continue;
+      try { unlinkSync(join(directory,'files',`${fileId}.xlsx`)); }
+      catch(error) { if(error.code!=='ENOENT')continue; }
+      transaction(()=>{
+        db.prepare("UPDATE knowledge_imports SET parsed_json='{}' WHERE id=?").run(fileId);
+        db.prepare('DELETE FROM knowledge_file_cleanup WHERE file_id=?').run(fileId);
+      });
+    }
+    return db.prepare('SELECT COUNT(*) count FROM knowledge_file_cleanup').get().count;
+  }
   const versionQuery = `SELECT p.id,p.name,p.deleted_at,p.created_at,v.id version_id,v.number,v.summary_json,v.sheets_json,v.created_at updated_at,f.name file_name,f.sha256
     FROM knowledge_projects p JOIN knowledge_versions v ON v.id=p.current_version_id JOIN files f ON f.id=v.file_id`;
   function project(row) {
     const sheets = JSON.parse(row.sheets_json);
-    return { id: row.id, name: row.name, versionId: row.version_id, version: row.number,
+    return documents.enrich({ id: row.id, name: row.name, versionId: row.version_id, version: row.number,
       fileName: row.file_name, sha256: row.sha256, summary: JSON.parse(row.summary_json), sheetDetails: sheets,
       sheets: Object.fromEntries(sheets.filter(s => s.headerRow !== null).map(s => [s.name, s.questionCount])),
-      createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at };
+      createdAt: row.created_at, updatedAt: row.updated_at, deletedAt: row.deleted_at });
   }
   function getProject(id, includeDeleted = false) {
     const row = db.prepare(`${versionQuery} WHERE p.id=? ${includeDeleted ? '' : 'AND p.deleted_at IS NULL'}`).get(id);
@@ -53,6 +67,11 @@ export function createStore(directory) {
     list: () => db.prepare(`${versionQuery} WHERE p.deleted_at IS NULL ORDER BY p.created_at,p.id`).all().map(project),
     trash: () => db.prepare(`${versionQuery} WHERE p.deleted_at IS NOT NULL ORDER BY p.deleted_at DESC,p.id`).all().map(project),
     getProject,
+    create(name) { return getProject(documents.create(name)); },
+    rename(id, input) { documents.rename(id, input); return getProject(id); },
+    mutateFile(id, documentId, input, restore) { documents.mutate(id, documentId, input, restore); return getProject(id); },
+    cleanupPurgedFiles,
+    purgeFile(id, documentId, input) { documents.purge(id, documentId, input); const cleanupPending=cleanupPurgedFiles(); return { project:getProject(id),cleanupPending }; },
     stage(file, parsed) {
       transaction(() => {
         db.prepare('INSERT INTO files VALUES (?,?,?,?,?)').run(file.id, file.name, file.sha256, file.bytes, file.createdAt);
@@ -60,6 +79,7 @@ export function createStore(directory) {
       });
     },
     commit(importId, options) {
+      if (['append', 'replace-file'].includes(options.mode)) return getProject(documents.commit(importId, options));
       return transaction(() => {
         const item = db.prepare('SELECT i.*,f.name,f.sha256 FROM knowledge_imports i JOIN files f ON f.id=i.id WHERE i.id=?').get(importId);
         if (!item) throw new ApiError(404, '待导入文件不存在，请重新选择文件。');
@@ -68,6 +88,7 @@ export function createStore(directory) {
         let id, number;
         const time = new Date().toISOString();
         if (options.mode === 'replace') {
+          documents.assertVersion(options.projectId, options.expectedVersionId);
           const old = getProject(options.projectId);
           if (old.versionId !== options.expectedVersionId) throw new ApiError(409, '知识库已发生变化，请重新核对替换目标。');
           if (old.sha256 === item.sha256) throw new ApiError(409, '文件与当前版本完全相同，无需重复替换。');
@@ -79,8 +100,10 @@ export function createStore(directory) {
         const versionId = randomUUID();
         db.prepare('INSERT INTO knowledge_versions VALUES (?,?,?,?,?,?,?,?)').run(versionId, id, number, item.id,
           JSON.stringify(parsed.summary), JSON.stringify(parsed.sheets), JSON.stringify(parsed.diagnostics), time);
-        const insert = db.prepare('INSERT INTO knowledge_records VALUES (?,?,?,?,?,?,?,?,?,?)');
-        for (const r of parsed.records) insert.run(randomUUID(), versionId, r.sheet, r.line, r.chapter, r.question, r.answer, r.questionCell, r.answerCell, r.status);
+        const insert = db.prepare('INSERT INTO knowledge_records (id,version_id,sheet,line,chapter,question,answer,question_cell,answer_cell,status,document_id,source_sheet,file_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        for (const r of parsed.records) insert.run(randomUUID(), versionId, r.sheet, r.line, r.chapter, r.question, r.answer, r.questionCell, r.answerCell, r.status, id, r.sheet, item.name);
+        const { records, ...metadata } = parsed;
+        db.prepare('INSERT INTO knowledge_version_files VALUES (?,?,?,?,0)').run(versionId,id,item.id,JSON.stringify(metadata));
         db.prepare('UPDATE knowledge_projects SET current_version_id=? WHERE id=?').run(versionId, id);
         db.prepare('UPDATE knowledge_imports SET committed_version_id=? WHERE id=?').run(versionId, importId);
         return getProject(id);
@@ -88,6 +111,7 @@ export function createStore(directory) {
     },
     remove(id, expectedVersionId) {
       return transaction(() => {
+        documents.assertVersion(id, expectedVersionId);
         const current = getProject(id);
         if (current.versionId !== expectedVersionId) throw new ApiError(409, '知识库已更新，请刷新后重新确认删除。');
         db.prepare('UPDATE knowledge_projects SET deleted_at=? WHERE id=?').run(new Date().toISOString(), id);
@@ -109,15 +133,16 @@ export function createStore(directory) {
       const sheet = (params.get('sheet') || '').slice(0, 100);
       const search = (params.get('q') || '').trim().slice(0, 200).toLowerCase();
       const status = params.get('status') || 'all';
-      const clauses = ['version_id=?'];
+      const clauses = ['version_id=?','NOT EXISTS (SELECT 1 FROM knowledge_purged_documents p WHERE p.document_id=knowledge_records.document_id)'];
       const args = [versionId];
       if (sheet) { clauses.push('sheet=?'); args.push(sheet); }
       if (search) { clauses.push('(instr(lower(question),?)>0 OR instr(lower(answer),?)>0 OR instr(lower(chapter),?)>0)'); args.push(search, search, search); }
       if (status === 'missing') clauses.push("status='missing'");
-      const where = clauses.join(' AND ');
-      const total = db.prepare(`SELECT COUNT(*) count FROM knowledge_records WHERE ${where}`).get(...args).count;
-      const rows = db.prepare(`SELECT id,sheet,line,chapter,question,answer,question_cell questionCell,answer_cell answerCell,status FROM knowledge_records WHERE ${where} ORDER BY sheet,line LIMIT ? OFFSET ?`).all(...args, limit, (page - 1) * limit);
-      return { records: rows, total, page, limit, versionId, summary: JSON.parse(version.summary_json) };
+      if (params.get('file')) { clauses.push('document_id=?'); args.push(params.get('file')); }
+      const filteredWhere = clauses.join(' AND ');
+      const filteredTotal = db.prepare(`SELECT COUNT(*) count FROM knowledge_records WHERE ${filteredWhere}`).get(...args).count;
+      const rows = db.prepare(`SELECT id,COALESCE(source_sheet,sheet) sheet,sheet scope,file_name fileName,document_id documentId,line,chapter,question,answer,question_cell questionCell,answer_cell answerCell,status FROM knowledge_records WHERE ${filteredWhere} ORDER BY sheet,line LIMIT ? OFFSET ?`).all(...args, limit, (page - 1) * limit);
+      return { records: rows, total: filteredTotal, page, limit, versionId, summary: JSON.parse(version.summary_json) };
     },
     versions(id) {
       getProject(id);

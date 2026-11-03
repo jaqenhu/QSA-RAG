@@ -74,6 +74,7 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
   const directory = resolve(dataDir);
   const store = createStore(directory);
   try { claimService(store); retireAccounts(store); } catch (error) { store.close(); throw error; }
+  store.cleanupPurgedFiles();
   const models = createModels(store, vault, providerClient);
   const indexer = createIndexer(store, models, providerClient);
   const assessment = createAssessment(store, models, indexer, providerClient, { directory, python });
@@ -93,7 +94,7 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
         if ((origin && origin !== `http://${host}`) || request.headers['sec-fetch-site'] === 'cross-site') throw new ApiError(403, '请从本机 QSA 页面执行操作。');
         const path = url.pathname;
         const method = request.method;
-        if (path === '/api/health' && method === 'GET') return json(200, { status: 'ok', storage: 'sqlite', schemaVersion: 5, maxUploadBytes: MAX_UPLOAD });
+        if (path === '/api/health' && method === 'GET') return json(200, { status: 'ok', storage: 'sqlite', schemaVersion: store.db.prepare('SELECT MAX(version) version FROM schema_migrations').get().version, maxUploadBytes: MAX_UPLOAD });
         if (path === '/api/assessment/current' && method === 'GET') return json(200, assessment.current());
         if (path === '/api/assessment/tasks' && method === 'GET') return json(200, assessment.history(url.searchParams));
         const assessmentInput = path.match(/^\/api\/assessment\/inputs\/([a-f0-9-]+)$/);
@@ -160,6 +161,7 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
           if (jobMatch[2] && method === 'POST') { await readJson(request); return json(200, indexer.cancel(jobMatch[1])); }
         }
         if (path === '/api/knowledge' && method === 'GET') return json(200, { projects: store.list(), trash: store.trash() });
+        if (path === '/api/knowledge' && method === 'POST') { const body = await readJson(request); return json(201, { project: store.create(body.name) }); }
         if (path === '/api/knowledge/imports' && method === 'POST') {
           if (!request.headers['content-type']?.startsWith('application/octet-stream')) throw new ApiError(415, '请通过文件选择器上传 .xlsx。');
           let name;
@@ -186,11 +188,16 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
         const importMatch = path.match(/^\/api\/knowledge\/imports\/([a-f0-9-]+)\/commit$/);
         if (importMatch && method === 'POST') {
           const options = await readJson(request);
-          if (!['new', 'replace'].includes(options.mode)) throw new ApiError(400, '请选择新建或替换知识库。');
-          if (options.mode === 'replace' && (typeof options.projectId !== 'string' || typeof options.expectedVersionId !== 'string')) throw new ApiError(400, '请选择需要替换的知识库。');
+          if (!['new', 'replace', 'append', 'replace-file'].includes(options.mode)) throw new ApiError(400, '请选择有效的上传方式。');
+          if (options.mode !== 'new' && (typeof options.projectId !== 'string' || typeof options.expectedVersionId !== 'string')) throw new ApiError(400, '请选择目标知识库。');
           if (options.name !== undefined && (typeof options.name !== 'string' || !options.name.trim() || options.name.trim().length > 100)) throw new ApiError(400, '知识库名称应为 1–100 个字。');
           if (options.name) options.name = options.name.trim();
           return json(201, { project: store.commit(importMatch[1], options) });
+        }
+        const fileMatch = path.match(/^\/api\/knowledge\/([a-f0-9-]+)\/files\/([a-f0-9-]+)(\/restore|\/purge)?$/);
+        if(fileMatch?.[3]==='/purge' && method==='DELETE')return json(200,store.purgeFile(fileMatch[1],fileMatch[2],await readJson(request)));
+        if (fileMatch && ((!fileMatch[3] && method === 'DELETE') || (fileMatch[3] && method === 'POST'))) {
+          const body = await readJson(request); return json(200, { project: store.mutateFile(fileMatch[1],fileMatch[2],body,Boolean(fileMatch[3])) });
         }
         const match = path.match(/^\/api\/knowledge\/([a-f0-9-]+)(?:\/(records|versions|diagnostics|restore))?$/);
         if (match) {
@@ -201,6 +208,7 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
           if (action === 'restore' && method === 'POST') { await readJson(request); return json(200, { project: store.restore(id) }); }
           if (!action && method === 'DELETE') { const body = await readJson(request); return json(200, store.remove(id, body.expectedVersionId)); }
           if (!action && method === 'GET') return json(200, { project: store.getProject(id) });
+          if (!action && method === 'PATCH') return json(200, { project: store.rename(id,await readJson(request)) });
         }
         throw new ApiError(404, '接口不存在。');
       }

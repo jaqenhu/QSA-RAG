@@ -50,7 +50,7 @@ test('本机业务接口无需登录，旧认证入口退役，工作台脚本�
   const html = await (await fetch(base)).text();
   assert.doesNotMatch(html, /auth-locked|auth-page|auth-logout|signed-in-user/);
   for (const name of ['app', 'knowledge', 'models', 'training', 'settings', 'records', 'assessment']) assert.ok(html.includes(`src="./${name}.js" defer`));
-  assert.equal((await (await fetch(base + '/api/health')).json()).schemaVersion, 5);
+  assert.equal((await (await fetch(base + '/api/health')).json()).schemaVersion, 8);
 });
 
 test('移除账号后仍拒绝外部 Host、Origin 和跨站请求', async t => {

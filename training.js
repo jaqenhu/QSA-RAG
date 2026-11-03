@@ -8,6 +8,7 @@ let retrievalRequest = 0;
 let trainingRenderedVersion = null;
 let loadedSettingsKey = null;
 let retrievalSaveBusy = false;
+let restoredTrainingVersion = null;
 const retrievalControlNames = { retrieval: ['training-retrieval','retrieval-method'], fusion: ['training-fusion','retrieval-fusion'], rrfK: ['training-rrf-k','retrieval-rrf-k'], vectorTopK: ['training-vector-top-k','retrieval-vector-top-k'], bm25TopK: ['training-bm25-top-k','retrieval-bm25-top-k'], rerankCandidateLimit: ['training-rerank-candidates','retrieval-rerank-candidates'], rerankTopN: ['training-rerank-top-n','retrieval-rerank-top-n'], rerankThreshold: ['training-rerank-threshold','retrieval-rerank-threshold'], topK: ['training-top-k','retrieval-top-k'], threshold: ['training-threshold','retrieval-score-threshold'], rerankModelId: ['training-rerank','retrieval-rerank'] };
 function readRetrievalControls(group) {
   return { retrievalVersion: 2, ...Object.fromEntries(Object.entries(retrievalControlNames).map(([key, ids]) => {
@@ -52,14 +53,14 @@ function renderTrainingKnowledge() {
   document.getElementById("linked-knowledge-summary").textContent = `${sheets.length} 张可用表 · ${answered.toLocaleString("zh-CN")} 条有说明 · ${project?.summary.missingCount || 0} 条缺少说明`;
   document.getElementById("training-sheets").innerHTML = '<legend>工作表范围</legend>' + sheets.map(([name, count]) => {
     const usable = project.sheetDetails.find(sheet => sheet.name === name)?.answeredCount || 0;
-    return `<label><input type="checkbox" value="${escapeHTML(name)}" data-sheet-count="${usable}"${!same || checked.has(name) ? " checked" : ""}>${escapeHTML(name)}<span>${usable} / ${count}</span></label>`;
+    return `<label><input type="checkbox" value="${escapeHTML(name)}" data-sheet-count="${usable}"${!same || checked.has(name) ? " checked" : ""}>${escapeHTML(sheetLabel(project, name))}<span>${usable} / ${count}</span></label>`;
   }).join("");
   updateTrainingSummary();
 }
 function renderTrainingProjectOptions() {
   const select = document.getElementById("training-knowledge");
   select.innerHTML = uploadedKnowledgeBases.map(project => `<option value="${project.id}">${escapeHTML(project.name)}</option>`).join("") || '<option value="">暂无知识库项目</option>';
-  select.value = selectedKnowledgeProjectId; select.disabled = !uploadedKnowledgeBases.length;
+  select.value = selectedKnowledgeProjectId; select.disabled = true;
   renderTrainingKnowledge();
   trainingState = null; retrievalRequest++; loadedSettingsKey = null;
   document.getElementById("retrieval-results").innerHTML = "";
@@ -74,7 +75,8 @@ function updateTrainingSummary() {
   const incremental = document.querySelector('#training-update option[value="incremental"]');
   incremental.disabled = !trainingState?.index || trainingState.index.config.modelFingerprint !== model?.fingerprint || trainingState.index.modelId !== model?.id;
   if (incremental.disabled && document.getElementById('training-update').value === 'incremental') document.getElementById('training-update').value = 'rebuild';
-  const reason = !currentKnowledgeProject() ? "请先上传知识库" : !checked.length ? "请选择至少一张工作表" : !total ? "所选工作表没有可用自评说明" : !model ? "请先配置向量模型" : !model.lastTest?.success ? "请先测试向量模型连接" : "";
+  const emptyUpdate = currentKnowledgeProject()?.fileCount === 0 && Boolean(trainingState?.index);
+  const reason = !currentKnowledgeProject() ? "请先选择知识库" : !checked.length && !emptyUpdate ? "请选择至少一张工作表" : !total && !emptyUpdate ? "所选工作表没有可用自评说明" : !model ? "请先配置向量模型" : !model.lastTest?.success ? "请先测试向量模型连接" : "";
   document.getElementById("training-selection-summary").textContent = reason || `已选 ${checked.length} 张表 · ${total.toLocaleString("zh-CN")} 条有说明`;
   const start = document.getElementById("start-knowledge-training");
   start.disabled = Boolean(reason) || running || trainingSubmitBusy;
@@ -91,12 +93,22 @@ function renderTrainingState() {
   const ready = trainingState?.ready;
   const stale = trainingState?.staleReason;
   const current = currentKnowledgeProject();
+  if (current && restoredTrainingVersion !== current.versionId) {
+    const saved = job?.config || trainingState?.index?.config;
+    document.getElementById('training-name').value = saved?.name || current.name.slice(0,60);
+    const modelId = job?.modelId || trainingState?.index?.modelId || configuredModels.find(model => model.type === 'embedding' && model.isDefault)?.id;
+    if (configuredModels.some(model => model.id === modelId)) document.getElementById('training-embedding').value = modelId;
+    document.getElementById('training-update').value = saved?.updateMode || 'rebuild';
+    if (job?.versionId === current.versionId && saved?.sheets) document.querySelectorAll('#training-sheets input').forEach(input => { input.checked = saved.sheets.includes(input.value); });
+    if (configuredModels.length || !modelId) restoredTrainingVersion = current.versionId;
+  }
   const settingsKey = trainingState?.retrievalSettings ? `${current?.id}:${trainingState.retrievalSettings.revision}` : null;
   if (settingsKey && settingsKey !== loadedSettingsKey) {
     fillRetrievalControls(trainingState.retrievalSettings.config); loadedSettingsKey = settingsKey;
     document.getElementById('retrieval-save-status').textContent = '保存后用于新自评，无需重建向量';
   }
-  document.getElementById("training-overall-status").textContent = ready ? "索引可用" : stale ? "需重建索引" : job?.status === "running" ? "训练中" : "未训练";
+  document.getElementById("training-overall-status").textContent = job?.status === "running" ? "训练中" : ready ? trainingState.pendingUpdate ? "有文件待更新" : "索引可用" : stale ? "需重建索引" : "未训练";
+  document.getElementById('library-update-note').textContent = trainingState?.pendingUpdate ? `有文件待更新；检索与自评使用已学习版本 v${trainingState.index.version}` : '';
   document.getElementById("training-task-status").textContent = job ? `${trainingStatusNames[job.status]}${job.versionId !== current?.versionId ? " · 旧版本" : ""}` : "未开始";
   document.getElementById("training-task-start").textContent = job ? new Date(job.createdAt).toLocaleString("zh-CN") : "—";
   if (job) { document.getElementById("training-task-total").textContent = `${job.total.toLocaleString("zh-CN")} 条`; document.getElementById("training-task-model").textContent = job.model.modelId; }
@@ -111,9 +123,9 @@ function renderTrainingState() {
   const jobError = document.getElementById("training-job-error"); jobError.hidden = !job?.error; jobError.textContent = job?.error || "";
   const cancel = document.getElementById("cancel-knowledge-training"); cancel.hidden = job?.status !== "running"; cancel.disabled = false;
   document.getElementById("run-retrieval").disabled = !ready || retrievalBusy;
-  document.getElementById("retrieval-index-summary").textContent = ready ? `${trainingState.index.count} 条问答 · ${trainingState.index.dimensions} 维 · v${current.version}` : stale || "尚未建立索引";
+  document.getElementById("retrieval-index-summary").textContent = ready ? `${trainingState.index.count} 条问答 · ${trainingState.index.dimensions} 维 · 已学习版本 v${trainingState.index.version}${trainingState.pendingUpdate ? ' · 有文件待更新' : ''}` : stale || "尚未建立索引";
   if (!document.getElementById("supplier-record-context").hidden) { /* Keep explicit example-history metadata. */ }
-  else if (current) document.getElementById("supplier-knowledge-total").textContent = `${current.summary.answeredCount.toLocaleString("zh-CN")} 条有说明 · ${ready ? "索引可用" : stale ? "需重建索引" : "未建立索引"}`;
+  else if (current) document.getElementById("supplier-knowledge-total").textContent = ready ? `${trainingState.index.count} 条已学习 · v${trainingState.index.version}${trainingState.pendingUpdate ? ' · 有文件待更新' : ''}` : `${current.summary.answeredCount} 条有说明 · ${stale ? '需重建索引' : '未建立索引'}`;
   if (stale) trainingMessage(stale, true);
   updateTrainingSummary();
 }
@@ -127,6 +139,7 @@ async function refreshTrainingState() {
     if (request !== trainingStateRequest || currentKnowledgeProject()?.versionId !== project.versionId) return;
     trainingState = data; trainingMessage(); renderTrainingState();
     if (data.job?.status === "running") trainingPollTimer = setTimeout(refreshTrainingState, 1200);
+    else await loadKnowledgeCatalog(project.id, true);
   } catch (error) { if (request === trainingStateRequest) trainingMessage(error.message, true); }
 }
 document.getElementById("training-form").addEventListener("submit", async event => {
@@ -159,7 +172,7 @@ document.getElementById("retrieval-form").addEventListener("submit", async event
     const data = await knowledgeApi(`/api/knowledge/${project.id}/retrieve`, jsonRequest("POST", input));
     if (request !== retrievalRequest || currentKnowledgeProject()?.versionId !== project.versionId) return;
     status.textContent = data.results.length ? `${data.results.length} 条匹配 · ${data.reranked ? `已重排 ${data.candidateCount} 条候选` : '未使用重排'}` : "没有达到当前阈值的记录，可调整阈值或补充知识库。";
-    document.getElementById("retrieval-results").innerHTML = data.results.map((row, index) => `<article class="retrieval-result"><div class="retrieval-result-heading"><strong>${index + 1}. ${escapeHTML(row.sheet)} · 第 ${row.line} 行</strong><span>${data.scoreType === 'rrf' ? 'RRF 分数 ' + row.score.toFixed(6) : '得分 ' + row.score.toFixed(3)}</span></div><div class="retrieval-result-source">${escapeHTML(project.name)} · v${project.version} · ${escapeHTML(row.questionCell)} / ${escapeHTML(row.answerCell)}${row.chapter ? ` · ${escapeHTML(row.chapter)}` : ""}</div><h3>${escapeHTML(row.question)}</h3><blockquote>${escapeHTML(row.answer)}</blockquote><span class="field-label">${data.reranked ? `重排 ${row.rerankScore.toFixed(3)} · ` : ""}向量 ${row.vectorScore.toFixed(3)} · BM25 ${row.keywordScore.toFixed(3)}</span></article>`).join("");
+    document.getElementById("retrieval-results").innerHTML = data.results.map((row, index) => `<article class="retrieval-result"><div class="retrieval-result-heading"><strong>${index + 1}. ${escapeHTML(row.fileName || '')} · ${escapeHTML(row.sheet)} · 第 ${row.line} 行</strong><span>${data.scoreType === 'rrf' ? 'RRF 分数 ' + row.score.toFixed(6) : '得分 ' + row.score.toFixed(3)}</span></div><div class="retrieval-result-source">${escapeHTML(project.name)} · 已学习版本 v${trainingState.index.version} · ${escapeHTML(row.questionCell)} / ${escapeHTML(row.answerCell)}${row.chapter ? ` · ${escapeHTML(row.chapter)}` : ""}</div><h3>${escapeHTML(row.question)}</h3><blockquote>${escapeHTML(row.answer)}</blockquote><span class="field-label">${data.reranked ? `重排 ${row.rerankScore.toFixed(3)} · ` : ""}向量 ${row.vectorScore.toFixed(3)} · BM25 ${row.keywordScore.toFixed(3)}</span></article>`).join("");
   } catch (error) { if (request === retrievalRequest) { status.textContent = error.message; status.classList.add("is-error"); } }
   finally { retrievalBusy = false; document.getElementById("run-retrieval").disabled = !trainingState?.ready; }
 });
@@ -185,5 +198,9 @@ document.getElementById('save-retrieval-settings').addEventListener('click', asy
   finally { retrievalSaveBusy = false; updateTrainingSummary(); }
 });
 updateRetrievalControls(0); updateRetrievalControls(1);
+document.getElementById('reset-retrieval-settings').addEventListener('click', () => {
+  fillRetrievalControls({retrieval:'hybrid',fusion:'rrf',rrfK:60,vectorTopK:20,bm25TopK:20,rerankCandidateLimit:40,rerankTopN:8,rerankThreshold:.5,topK:8,threshold:.5,rerankModelId:null});
+  document.getElementById('retrieval-save-status').textContent = '已恢复默认，保存后用于新自评';
+});
 window.addEventListener("hashchange", () => { if (location.hash === "#knowledge-training") refreshTrainingState(); });
 renderTrainingModels(); renderTrainingProjectOptions();

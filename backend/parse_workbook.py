@@ -21,6 +21,13 @@ def normalize(value):
     return re.sub(r"[\s：:（）()]+", "", text(value))
 
 
+def matches_header(sheet, row, strict):
+    if strict:
+        return tuple(text(sheet.cell(row, c).value) for c in (1, 2, 3)) == ("序号", "审核项目", "自评说明")
+    return (normalize(sheet.cell(row, 2).value) in QUESTION_HEADERS
+            and normalize(sheet.cell(row, 3).value) in ANSWER_HEADERS)
+
+
 def inspect_archive(path):
     try:
         archive = zipfile.ZipFile(path)
@@ -48,7 +55,7 @@ def inspect_archive(path):
                     raise ValueError("工作簿包含不受支持的 XML 声明。")
 
 
-def parse_workbook(path):
+def parse_workbook(path, strict_headers=True):
     inspect_archive(path)
     try:
         import openpyxl
@@ -75,14 +82,13 @@ def parse_workbook(path):
             if sheet.max_row > MAX_ROWS:
                 raise ValueError("单张工作表超过 50,000 行，请拆分后上传。")
             header = next((r for r in range(1, min(sheet.max_row, 50) + 1)
-                           if normalize(sheet.cell(r, 2).value) in QUESTION_HEADERS
-                           and normalize(sheet.cell(r, 3).value) in ANSWER_HEADERS), None)
+                           if matches_header(sheet, r, strict_headers)), None)
             stat = {"name": sheet.title, "rows": sheet.max_row, "headerRow": header,
                     "questionCount": 0, "answeredCount": 0, "missingCount": 0,
                     "skippedCount": 0, "hidden": sheet.sheet_state != "visible"}
             sheets.append(stat)
             if header is None:
-                issue(sheet.title, None, "未识别到 B 列问题 / C 列自评说明表头，整表跳过")
+                issue(sheet.title, None, "前三列表头必须依次为“序号”“审核项目”“自评说明”，未识别，整表跳过" if strict_headers else "未识别到 B 列问题 / C 列自评说明表头，整表跳过")
                 stat["skippedCount"] = sheet.max_row
                 continue
             # Horizontal merged headings are not questions. Vertical answer merges
@@ -152,7 +158,7 @@ def parse_workbook(path):
                                 "questionCell": cells["B"], "answerCell": cells["C"],
                                 "status": "missing" if missing else "answered"})
         if not records:
-            raise ValueError("未找到可导入的问题，请检查 B 列问题和 C 列自评说明的表头及内容。")
+            raise ValueError("无法识别知识库：前三列 A、B、C 的表头必须依次为“序号”“审核项目”“自评说明”，并包含审核内容。" if strict_headers else "未找到可导入的问题，请检查 B 列问题和 C 列自评说明的表头及内容。")
         return {"sheets": sheets, "records": records, "diagnostics": diagnostics,
                 "summary": {"sheetCount": len(sheets), "questionCount": len(records),
                             "answeredCount": sum(s["answeredCount"] for s in sheets),

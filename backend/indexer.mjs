@@ -62,16 +62,19 @@ export function createIndexer(store, models, client) {
     const row = latestIndex(projectId);
     if (!row) return { index: null, ready: false, staleReason: null };
     const config = JSON.parse(row.config_json);
-    let staleReason = row.version_id !== project.versionId ? '知识库已有新版本，请重建索引。' : null;
+    const pendingUpdate = row.version_id !== project.versionId;
+    let staleReason = null;
     try {
       const model = models.get(row.model_id);
       if (model.type !== 'embedding' || modelFingerprint(model) !== config.modelFingerprint || config.policyVersion !== 'qa-v1') staleReason = '向量模型配置已改变，请重建索引。';
     } catch { staleReason = '原向量模型已删除，请重新配置并重建索引。'; }
     return { index: { id: row.id, versionId: row.version_id, modelId: row.model_id, dimensions: row.dimensions, config, createdAt: row.created_at,
-      count: db.prepare('SELECT COUNT(*) count FROM index_vectors WHERE index_id=?').get(row.id).count }, ready: !staleReason, staleReason };
+      version: db.prepare('SELECT number FROM knowledge_versions WHERE id=?').get(row.version_id).number,
+      purgeRevision: db.prepare('SELECT COUNT(*) count FROM knowledge_purged_documents WHERE project_id=?').get(projectId).count,
+      count: db.prepare('SELECT COUNT(*) count FROM index_vectors WHERE index_id=?').get(row.id).count }, ready: !staleReason, staleReason, pendingUpdate };
   }
   function corpus(indexId) {
-    return db.prepare(`SELECT r.id,r.sheet,r.line,r.chapter,r.question,r.answer,r.question_cell questionCell,r.answer_cell answerCell,v.vector FROM index_vectors v JOIN knowledge_records r ON r.id=v.record_id WHERE v.index_id=? ORDER BY r.sheet,r.line`).all(indexId);
+    return db.prepare(`SELECT r.id,COALESCE(r.source_sheet,r.sheet) sheet,r.sheet scope,r.document_id documentId,r.file_name fileName,r.line,r.chapter,r.question,r.answer,r.question_cell questionCell,r.answer_cell answerCell,v.vector FROM index_vectors v JOIN knowledge_records r ON r.id=v.record_id WHERE v.index_id=? ORDER BY r.sheet,r.line`).all(indexId);
   }
   function checkCurrent(task, config) {
     const current = store.getProject(task.projectId);
@@ -89,7 +92,6 @@ export function createIndexer(store, models, client) {
       controller.signal.throwIfAborted();
       checkCurrent(task, task.config);
       update(id, { stage: 1 });
-      if (!records.length) throw new ApiError(400, '所选工作表没有可用问答，请补充自评说明后重试。');
       update(id, { stage: 2 });
       for (let offset = 0; offset < records.length; offset += 8) {
         controller.signal.throwIfAborted(); checkCurrent(task, task.config);
@@ -107,15 +109,17 @@ export function createIndexer(store, models, client) {
         });
       }
       update(id, { stage: 3 });
-      const query = (await client.embeddings(access.config, access.key, [records[0].question], controller.signal))[0];
-      controller.signal.throwIfAborted(); checkCurrent(task, task.config);
-      if (query.length !== dimensions) throw new ApiError(422, '检索验证返回维度不一致，未发布索引。');
-      const verified = rankRecords(corpus(task.indexId), records[0].question, normalizedVector(query), 'vector');
-      if (!verified.length || verified.some(r => !Number.isFinite(r.score))) throw new ApiError(422, '检索验证失败，未发布索引。');
-      if (!verified.slice(0, 10).some(r => r.id === records[0].id)) throw new ApiError(422, '检索验证未召回原始问题，请检查向量模型后重试。');
+      if (records.length) {
+        const query = (await client.embeddings(access.config, access.key, [records[0].question], controller.signal))[0];
+        controller.signal.throwIfAborted(); checkCurrent(task, task.config);
+        if (query.length !== dimensions) throw new ApiError(422, '检索验证返回维度不一致，未发布索引。');
+        const verified = rankRecords(corpus(task.indexId), records[0].question, normalizedVector(query), 'vector');
+        if (!verified.length || verified.some(r => !Number.isFinite(r.score))) throw new ApiError(422, '检索验证失败，未发布索引。');
+        if (!verified.slice(0, 10).some(r => r.id === records[0].id)) throw new ApiError(422, '检索验证未召回原始问题，请检查向量模型后重试。');
+      }
       store.transaction(() => {
         checkCurrent(task, task.config);
-        db.prepare("UPDATE knowledge_indexes SET dimensions=?,status='ready' WHERE id=?").run(dimensions, task.indexId);
+        db.prepare("UPDATE knowledge_indexes SET dimensions=?,status='ready' WHERE id=?").run(dimensions || 0, task.indexId);
         update(id, { status: 'success', stage: 4, finished_at: new Date().toISOString() });
       });
     } catch (error) {
@@ -146,14 +150,14 @@ export function createIndexer(store, models, client) {
       if (project.versionId !== input.expectedVersionId) throw new ApiError(409, '知识库版本已变化，请重新选择。');
       if (!['rebuild','incremental'].includes(input.updateMode)) throw new ApiError(400, '请选择重建索引或增量更新。');
       if (active.size >= 2) throw new ApiError(429, '已有训练任务运行，请稍后再开始。');
-      if (!Array.isArray(input.sheets) || !input.sheets.length || input.sheets.length !== new Set(input.sheets).size || input.sheets.some(name => !Object.hasOwn(project.sheets, name))) throw new ApiError(400, '请选择有效的工作表范围。');
+      if (!Array.isArray(input.sheets) || (!input.sheets.length && project.fileCount !== 0) || input.sheets.length !== new Set(input.sheets).size || input.sheets.some(name => !Object.hasOwn(project.sheets, name))) throw new ApiError(400, '请选择有效的工作表范围。');
       const retrieval = retrievalConfig({ ...input, retrievalVersion: 2 }); checkRerank(retrieval);
       if (typeof input.name !== 'string' || !input.name.trim() || input.name.trim().length > 60) throw new ApiError(400, '请填写 1–60 字的训练任务名称。');
       if (input.rerankModelId && models.get(input.rerankModelId).type !== 'rerank') throw new ApiError(400, '重排模型类型无效。');
       const access = await models.access(input.modelId, 'embedding', true);
       const placeholders = input.sheets.map(() => '?').join(',');
-      const records = db.prepare(`SELECT id,sheet,line,chapter,question,answer FROM knowledge_records WHERE version_id=? AND status='answered' AND sheet IN (${placeholders}) ORDER BY sheet,line`).all(project.versionId, ...input.sheets);
-      if (!records.length || records.length > 50000) throw new ApiError(400, '所选工作表没有可用问答，或问答超过 50,000 条。');
+      const records = db.prepare(`SELECT id,COALESCE(source_sheet,sheet) sheet,sheet scope,document_id documentId,file_name fileName,line,chapter,question,answer FROM knowledge_records WHERE version_id=? AND status='answered' AND sheet IN (${placeholders}) ORDER BY sheet,line`).all(project.versionId, ...input.sheets);
+      if ((!records.length && project.fileCount !== 0) || records.length > 50000) throw new ApiError(400, '所选工作表没有可用问答，或问答超过 50,000 条。');
       const config = { ...retrieval, name: input.name.trim(), sheets: input.sheets, modelFingerprint: modelFingerprint(access.config), policyVersion: 'qa-v1' };
       config.updateMode = input.updateMode;
       if (input.updateMode === 'incremental') {
@@ -163,11 +167,12 @@ export function createIndexer(store, models, client) {
         if (base.model_id !== access.config.id || previousConfig.modelFingerprint !== config.modelFingerprint || previousConfig.policyVersion !== config.policyVersion) throw new ApiError(409, '向量模型或导入规则已变化，请重建索引。');
         const previous = corpus(base.id);
         const hashes = new Set(previous.map(recordHash));
-        const locations = new Map(previous.map(record => [`${record.sheet}\0${record.line}`, recordHash(record)]));
-        const currentLocations = new Set(records.map(record => `${record.sheet}\0${record.line}`));
+        const location = record => `${record.documentId}\0${record.sheet}\0${record.line}`;
+        const locations = new Map(previous.map(record => [location(record), recordHash(record)]));
+        const currentLocations = new Set(records.map(location));
         const reused = records.filter(record => hashes.has(recordHash(record))).length;
         config.baseIndexId = base.id; config.baseDimensions = base.dimensions;
-        config.changes = { reused, computed: records.length - reused, added: records.filter(record => !locations.has(`${record.sheet}\0${record.line}`)).length, modified: records.filter(record => locations.has(`${record.sheet}\0${record.line}`) && locations.get(`${record.sheet}\0${record.line}`) !== recordHash(record)).length, removed: previous.filter(record => !currentLocations.has(`${record.sheet}\0${record.line}`)).length };
+        config.changes = { reused, computed: records.length - reused, added: records.filter(record => !locations.has(location(record))).length, modified: records.filter(record => locations.has(location(record)) && locations.get(location(record)) !== recordHash(record)).length, removed: previous.filter(record => !currentLocations.has(location(record))).length };
       } else config.changes = { reused: 0, computed: records.length, added: records.length, modified: 0, removed: 0 };
       const id = randomUUID(), indexId = randomUUID(), time = new Date().toISOString();
       store.transaction(() => {
@@ -203,7 +208,7 @@ export function createIndexer(store, models, client) {
       const config = retrievalConfig(supplied, baseConfig);
       const method = config.retrieval, topK = config.topK;
       let queryVector = null;
-      if (method !== 'keyword') {
+      if (method !== 'keyword' && index.count) {
         const access = await models.access(index.modelId, 'embedding');
         const vector = (await client.embeddings(access.config, access.key, [input.query.trim()], signal))[0];
         access.key = '';
@@ -226,7 +231,7 @@ export function createIndexer(store, models, client) {
         results = reranked.map(r => ({ ...candidates[r.index], retrievalScore: candidates[r.index].score, score: r.score, rerankScore: r.score })).sort((a, b) => b.score - a.score);
       }
       const finalState = indexState(projectId);
-      if (!finalState.ready || finalState.index.id !== index.id) throw new ApiError(409, '检索期间知识库或索引已更新，请重试。');
+      if (!finalState.ready || finalState.index.id !== index.id || finalState.index.purgeRevision !== index.purgeRevision) throw new ApiError(409, '检索期间知识库或索引已更新，请重试。');
       return { indexId: index.id, versionId: index.versionId, method, threshold, topK: returnLimit, config, candidateCount, scoreType: rerankId ? 'rerank' : rrf ? 'rrf' : method, reranked: Boolean(rerankId), results: results.filter(row => threshold === null || row.score >= threshold).slice(0, returnLimit) };
     },
     async shutdown() { const entries = [...active.values()]; entries.forEach(entry => entry.controller.abort()); await Promise.allSettled(entries.map(entry => entry.done)); },
