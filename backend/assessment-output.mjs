@@ -83,7 +83,7 @@ export function groundedResult(output, candidates) {
       const quote = clean(citation.quote);
       // Only verified verbatim C-column extracts become answers. No model-authored facts.
       quotes.add(quote);
-      const current = sources.get(record.id) || { recordId: record.id, sheet: record.sheet, line: record.line, questionCell: record.questionCell, answerCell: record.answerCell, question: record.question, excerpt: record.answer, quotes: [] };
+      const current = sources.get(record.id) || { recordId: record.id, ...(record.fileName ? { fileName: record.fileName, documentId: record.documentId } : {}), sheet: record.sheet, line: record.line, questionCell: record.questionCell, answerCell: record.answerCell, question: record.question, excerpt: record.answer, quotes: [] };
       if (!current.quotes.includes(quote)) current.quotes.push(quote);
       sources.set(record.id, current);
     }

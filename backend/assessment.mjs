@@ -180,12 +180,12 @@ export function createAssessment(store, models, indexer, client, { directory, py
     const access = await models.access(model.id, 'generation', true);
     if (active.size) { access.key = ''; throw new ApiError(409, '已有自评任务运行。'); }
     const retrieval = retry ? retry.snapshot.retrieval || legacyAssessmentRetrieval(retry.snapshot) : indexer.settings(project.id).config;
-    const snapshot = { input: { id: workbook.id, name: workbook.name, sha256: workbook.sha256, questionCount: workbook.records.length }, knowledge: { id: project.id, name: project.name, versionId: project.versionId, version: project.version }, model: access.config, embedding: models.get(state.index.modelId), rerank: retrieval.rerankModelId ? models.get(retrieval.rerankModelId) : null, retrieval, policyVersion: 'extractive-evidence-v1', outputContract: 'flat-evidence-v2' };
+    const snapshot = { input: { id: workbook.id, name: workbook.name, sha256: workbook.sha256, questionCount: workbook.records.length }, knowledge: { id: project.id, name: project.name, versionId: state.index.versionId, version: state.index.version }, model: access.config, embedding: models.get(state.index.modelId), rerank: retrieval.rerankModelId ? models.get(retrieval.rerankModelId) : null, retrieval, policyVersion: 'extractive-evidence-v1', outputContract: 'flat-evidence-v2' };
     const id = randomUUID(), time = new Date().toISOString();
     const previous = retry ? new Map(retry.results.map(row => [row.inputRecordId, row])) : new Map();
     store.transaction(() => {
       db.prepare('INSERT INTO assessment_workspace VALUES (1,?) ON CONFLICT(id) DO UPDATE SET input_id=excluded.input_id').run(workbook.id);
-      db.prepare("INSERT INTO assessment_tasks VALUES (?,?,?,?, 'running',?,NULL)").run(id, workbook.id, project.versionId, JSON.stringify(access.config), time);
+      db.prepare("INSERT INTO assessment_tasks VALUES (?,?,?,?, 'running',?,NULL)").run(id, workbook.id, state.index.versionId, JSON.stringify(access.config), time);
       db.prepare('INSERT INTO assessment_runs (task_id,project_id,index_id,input_id,snapshot_json,total,processed,retry_of,updated_at) VALUES (?,?,?,?,?,?,0,?,?)').run(id, project.id, state.index.id, workbook.id, JSON.stringify(snapshot), records.length, retry?.id || null, time);
       for (const row of records) {
         const resultId = randomUUID(), old = previous.get(row.id);
@@ -264,7 +264,7 @@ export function createAssessment(store, models, indexer, client, { directory, py
       if (before !== workbook.sha256) throw new ApiError(409, '原始待填表副本校验失败，未导出。');
       const output = join(directory, 'files', `${randomUUID()}.export.xlsx`);
       try {
-        await assessmentWorkbook(python, ['export', original, output], { results: run.results.map(row => ({ ...row, sourceText: row.sources.map(source => `${run.snapshot.knowledge.name} · v${run.snapshot.knowledge.version} · ${source.sheet} · 第 ${source.line} 行 · ${source.answerCell}`).join('\n') })) });
+        await assessmentWorkbook(python, ['export', original, output], { results: run.results.map(row => ({ ...row, sourceText: row.sources.map(source => `${run.snapshot.knowledge.name} · v${run.snapshot.knowledge.version} · ${source.fileName ? source.fileName + " · " : ""}${source.sheet} · 第 ${source.line} 行 · ${source.answerCell}`).join('\n') })) });
         const bytes = await readFile(output);
         return { bytes, name: workbook.name.replace(/\.xlsx$/i, '') + '—自评结果.xlsx' };
       } finally { await unlink(output).catch(() => {}); }

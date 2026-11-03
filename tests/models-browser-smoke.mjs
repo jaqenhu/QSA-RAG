@@ -47,7 +47,12 @@ try {
   assert.equal(await page.locator('#model-api-key').inputValue(), '');
   assert.match(await page.locator('#model-api-key').getAttribute('placeholder'), /保留/);
   await page.keyboard.press('Escape');
-  await go('knowledge-upload');
+  await go('knowledge-list');
+  await page.locator('#create-knowledge-project').click();
+  await page.locator('#knowledge-name-input').fill('模型验证知识库');
+  await page.locator('#save-knowledge-name').click();
+  await page.locator('#knowledge-detail-title').filter({hasText:'模型验证知识库'}).waitFor();
+  await page.locator('#open-knowledge-upload').click();
   await page.locator('#knowledge-file-input').setInputFiles(join(directory,'v1.xlsx'));
   await page.waitForFunction(() => !document.getElementById('knowledge-upload-preview').hidden);
   await page.locator('#confirm-knowledge-upload').click();

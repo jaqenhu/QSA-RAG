@@ -113,7 +113,7 @@ test('模型持久化与完整索引检索流程（隔离 HTTP 服务）', async
       assert.equal((await finish(cancelled.id)).status, 'cancelled'); mock.behavior.slowMs = 0;
       state = await api(`/api/knowledge/${project.id}/training`); assert.equal(state.index.id, training.indexId);
     });
-    await t.test('重启持久化、模型变化及知识库新版本使旧索引失效', async () => {
+    await t.test('重启持久化、模型变化禁用旧索引，文件更新保留已学习版本', async () => {
       await stop(); await start();
       assert.equal((await api(`/api/knowledge/${project.id}/training`)).ready, true);
       assert.equal((await api('/api/models')).models.find(m => m.id === embedding.id).hasKey, true);
@@ -124,8 +124,10 @@ test('模型持久化与完整索引检索流程（隔离 HTTP 服务）', async
       const rebuilt = (await api(`/api/knowledge/${project.id}/training`, 'POST', input(), 202)).job;
       assert.equal((await finish(rebuilt.id)).status, 'success');
       project = await upload('v2.xlsx', { mode: 'replace', projectId: project.id, expectedVersionId: project.versionId });
-      assert.equal((await api(`/api/knowledge/${project.id}/training`)).ready, false);
-      await api(`/api/knowledge/${project.id}/retrieve`, 'POST', { query: '质量目标' }, 409);
+      const pending = await api(`/api/knowledge/${project.id}/training`);
+      assert.equal(pending.ready, true); assert.equal(pending.pendingUpdate, true);
+      assert.notEqual(pending.index.versionId, project.versionId);
+      await api(`/api/knowledge/${project.id}/retrieve`, 'POST', { query: '质量目标' });
       const changed = (await api(`/api/knowledge/${project.id}/training`, 'POST', input(), 202)).job;
       assert.equal((await finish(changed.id)).status, 'success');
       const found = await api(`/api/knowledge/${project.id}/retrieve`, 'POST', { query: '质量手册', threshold: 0.1 });
