@@ -5,9 +5,10 @@ let selectedKnowledgeProjectId = '';
 try { selectedKnowledgeProjectId = localStorage.getItem('qsa-knowledge-project') || ''; } catch {}
 let selectedKnowledgeFileId = '', selectedKnowledgeSheet = '', knowledgePage = 1, knowledgeTotal = 0;
 let knowledgeRequest = 0, catalogRequest = 0, uploadBusy = false, uploadDraft = null, uploadTarget = null, knowledgeSearchTimer, libraryPoll;
-let pendingKnowledgeDelete = null, pendingFileDelete = null, namingProject = null;
+let pendingKnowledgeDelete = null, pendingFileDelete = null, pendingFilePurge = null, namingProject = null;
 const $k = id => document.getElementById(id);
 const uploadDialog = $k('knowledge-upload-dialog'), nameDialog = $k('knowledge-name-dialog'), knowledgeDeleteDialog = $k('delete-knowledge-dialog'), fileDeleteDialog = $k('knowledge-file-delete-dialog');
+const filePurgeDialog=$k('knowledge-file-purge-dialog');
 const fileStatusNames = { unlearned:'未学习', learning:'学习中', learned:'已学习', outdated:'待更新', failed:'学习失败' };
 async function knowledgeApi(path, options = {}) {
   let response;
@@ -56,7 +57,6 @@ function renderKnowledgeProjects() {
   document.querySelectorAll('[data-knowledge-project]').forEach(select=>{select.innerHTML=uploadedKnowledgeBases.map(item=>`<option value="${item.id}">${escapeHTML(item.name)}</option>`).join('')||'<option value="">暂无知识库</option>';select.value=selectedKnowledgeProjectId;select.disabled=!p;});
   $k('knowledge-detail-title').textContent=p?.name||'知识库';$k('training-library-title').textContent=p?.name||'';
   if(location.hash==='#knowledge-preview')$k('breadcrumb-current').textContent=p?.name||'知识库详情';
-  $k('knowledge-project-summary').textContent=p?`${p.fileCount} 个文件 · ${p.summary.questionCount} 项问题 · ${p.summary.answeredCount} 条有说明`:'';
   $k('knowledge-version-label').textContent=p?`文件版本 v${p.version}`:'';
   for(const id of ['delete-knowledge-project','rename-knowledge-project','show-knowledge-diagnostics','open-knowledge-training','open-knowledge-upload'])$k(id).disabled=!p;
   $k('supplier-knowledge-sheets').innerHTML=Object.entries(p?.sheets||{}).map(([scope,count])=>`<button type="button" data-sheet="${escapeHTML(scope)}">${escapeHTML(sheetLabel(p,scope))} <span>${count}</span></button>`).join('');
@@ -73,7 +73,7 @@ function renderFileDirectory() {
   $k('library-file-list').innerHTML=(p?.files||[]).filter(file=>file.name.toLowerCase().includes(query)).map(file=>`<button class="library-file ${file.id===selectedKnowledgeFileId?'selected':''}" data-library-file="${file.id}" aria-pressed="${file.id===selectedKnowledgeFileId}">${icon('file')}<span><strong>${escapeHTML(file.name)}</strong><small>${fileBadge(file)}<span>${file.summary.questionCount} 项问题</span></small></span></button>`).join('');
   if(focusedFile)document.querySelector(`[data-library-file="${focusedFile}"]`)?.focus({preventScroll:true});
   $k('library-no-files').hidden=Boolean(p?.files.some(file=>file.name.toLowerCase().includes(query)));$k('library-no-files').textContent=p?.fileCount?'没有匹配的文件':'暂无文件，请先上传';
-  $k('library-deleted-files').hidden=!p?.trashFiles.length;$k('library-file-trash').innerHTML=(p?.trashFiles||[]).map(file=>`<div class="library-trash-file"><span>${escapeHTML(file.name)}</span><button class="text-button" data-restore-file="${file.id}">恢复</button></div>`).join('');
+  $k('library-deleted-files').hidden=!p?.trashFiles.length;$k('library-file-trash').innerHTML=(p?.trashFiles||[]).map(file=>`<div class="library-trash-file"><span>${escapeHTML(file.name)}</span><div><button class="text-button" data-restore-file="${file.id}">恢复</button><button class="text-button danger-text" data-purge-file="${file.id}">彻底删除</button></div></div>`).join('');
   $k('library-preview-name').textContent=f?.name||'选择文件预览';$k('library-preview-info').textContent=f?`${fileStatusNames[f.status]} · ${f.learnedCount}/${f.summary.answeredCount} 条有说明记录已学习 · ${f.summary.missingCount} 条缺少说明 · ${f.summary.skippedCount} 行跳过`:'';
   $k('library-file-error').hidden=!f?.error;$k('library-file-error').textContent=f?.error||'';
   const learning=Boolean(p?.files.some(file=>file.status==='learning'));
@@ -127,11 +127,13 @@ async function pollLibrary(){if(!location.hash.startsWith('#knowledge-'))return;
 function navigate(view){if(view==='knowledge-upload'){openKnowledgeUpload();return;}if(!Object.hasOwn(views,view))return;if(location.hash!==`#${view}`)location.hash=view;renderView(view);window.scrollTo({top:0,behavior:'instant'});}
 document.addEventListener('click',async event=>{
   const t=event.target;
+  document.querySelectorAll('[data-library-menu][open]').forEach(menu=>{if(!menu.contains(t)||t.closest('button'))menu.open=false;});
   if(t.closest('[data-close-upload]')){if(!uploadBusy)uploadDialog.close();return;}if(t.closest('[data-close-name]')){nameDialog.close();return;}if(t.closest('[data-create-library]')){openKnowledgeName();return;}
   const library=t.closest('[data-library]');if(library){selectKnowledgeProject(library.dataset.library);navigate('knowledge-preview');return;}
   const rename=t.closest('[data-library-rename]');if(rename){openKnowledgeName(uploadedKnowledgeBases.find(p=>p.id===rename.dataset.libraryRename));return;}
   const remove=t.closest('[data-library-delete]');if(remove){openKnowledgeDelete(uploadedKnowledgeBases.find(p=>p.id===remove.dataset.libraryDelete));return;}
   const file=t.closest('[data-library-file]');if(file){selectedKnowledgeFileId=file.dataset.libraryFile;selectedKnowledgeSheet='';knowledgePage=1;$k('knowledge-search').value='';renderFileDirectory();renderKnowledge();return;}
+  const purge=t.closest('[data-purge-file]');if(purge){const p=currentKnowledgeProject(),f=p?.trashFiles.find(file=>file.id===purge.dataset.purgeFile);if(!f)return;pendingFilePurge={projectId:p.id,expectedVersionId:p.versionId,id:f.id};$k('knowledge-file-purge-name').textContent=f.name;$k('knowledge-file-purge-error').textContent='';filePurgeDialog.showModal();return;}
   const restore=t.closest('[data-restore-file]');if(restore){const p=currentKnowledgeProject();restore.disabled=true;try{await knowledgeApi(`/api/knowledge/${p.id}/files/${restore.dataset.restoreFile}/restore`,jsonRequest('POST',{expectedVersionId:p.versionId}));await loadKnowledgeCatalog(p.id);showToast('文件已恢复，请更新索引');}catch(error){showToast(error.message);}finally{restore.disabled=false;}return;}
   const sheet=t.closest('[data-knowledge-sheet], [data-sheet]');if(sheet){selectedKnowledgeSheet=sheet.dataset.knowledgeSheet||sheet.dataset.sheet;const p=currentKnowledgeProject(),s=p?.sheetDetails.find(item=>item.name===selectedKnowledgeSheet);selectedKnowledgeFileId=s?.documentId||p?.files[0]?.id||'';knowledgePage=1;renderFileDirectory();renderKnowledge();if(sheet.dataset.sheet)navigate('knowledge-preview');else document.querySelector(`[data-knowledge-sheet="${CSS.escape(selectedKnowledgeSheet)}"]`)?.focus();return;}
   const view=t.closest('[data-view]');if(view){event.preventDefault();navigate(view.dataset.view);}
@@ -143,6 +145,10 @@ $k('undo-knowledge-delete').addEventListener('click',async event=>{const p=knowl
 $k('open-knowledge-upload').addEventListener('click',()=>openKnowledgeUpload());$k('replace-knowledge-file').addEventListener('click',()=>openKnowledgeUpload(true));
 $k('delete-knowledge-file').addEventListener('click',()=>{const p=currentKnowledgeProject(),f=currentKnowledgeFile();if(!f)return;pendingFileDelete={projectId:p.id,expectedVersionId:p.versionId,id:f.id};$k('knowledge-file-delete-name').textContent=f.name;$k('knowledge-file-delete-error').textContent='';fileDeleteDialog.showModal();});
 $k('confirm-knowledge-file-delete').addEventListener('click',async event=>{if(!pendingFileDelete)return;const target={...pendingFileDelete};event.currentTarget.disabled=true;try{await knowledgeApi(`/api/knowledge/${target.projectId}/files/${target.id}`,jsonRequest('DELETE',{expectedVersionId:target.expectedVersionId}));fileDeleteDialog.close();await loadKnowledgeCatalog(target.projectId);showToast('文件已删除，更新索引后从检索中移除');}catch(error){$k('knowledge-file-delete-error').textContent=error.message;}finally{$k('confirm-knowledge-file-delete').disabled=false;}});
+$k('confirm-knowledge-file-purge').addEventListener('click',async event=>{if(!pendingFilePurge||event.currentTarget.disabled)return;const target={...pendingFilePurge};event.currentTarget.disabled=true;try{const data=await knowledgeApi(`/api/knowledge/${target.projectId}/files/${target.id}/purge`,jsonRequest('DELETE',{expectedVersionId:target.expectedVersionId,confirmed:true}));filePurgeDialog.close();await loadKnowledgeCatalog(target.projectId);showToast(data.cleanupPending?'文件已移除，原文件清理将在下次启动时重试':'文件已彻底删除，无法恢复');}catch(error){$k('knowledge-file-purge-error').textContent=error.message;}finally{$k('confirm-knowledge-file-purge').disabled=false;}});
+filePurgeDialog.addEventListener('close',()=>{pendingFilePurge=null;});
+filePurgeDialog.addEventListener('cancel',event=>{if($k('confirm-knowledge-file-purge').disabled)event.preventDefault();});
+document.addEventListener('keydown',event=>{if(event.key==='Escape')document.querySelectorAll('[data-library-menu][open]').forEach(menu=>{menu.open=false;menu.querySelector('summary').focus();});});
 $k('choose-knowledge-file').addEventListener('click',()=>{const input=$k('knowledge-file-input');input.value='';input.click();});$k('knowledge-file-input').addEventListener('change',event=>stageKnowledgeFile(event.target.files[0]));$k('confirm-knowledge-upload').addEventListener('click',commitKnowledgeUpload);uploadDialog.addEventListener('cancel',event=>{if(uploadBusy)event.preventDefault();});
 const knowledgeDropzone=$k('knowledge-dropzone');for(const name of ['dragenter','dragover','dragleave','drop'])knowledgeDropzone.addEventListener(name,event=>{event.preventDefault();knowledgeDropzone.classList.toggle('drag-over',['dragenter','dragover'].includes(name));});knowledgeDropzone.addEventListener('drop',event=>{if(event.dataTransfer.files.length!==1){showUploadStatus('请每次上传一个文件。',true);return;}stageKnowledgeFile(event.dataTransfer.files[0]);});
 $k('knowledge-catalog-search').addEventListener('input',renderKnowledgeCatalog);$k('library-file-search').addEventListener('input',renderFileDirectory);$k('knowledge-search').addEventListener('input',()=>{clearTimeout(knowledgeSearchTimer);knowledgeRequest++;knowledgeSearchTimer=setTimeout(()=>{knowledgePage=1;renderKnowledge();},180);});$k('knowledge-missing-only').addEventListener('change',()=>{knowledgePage=1;renderKnowledge();});$k('knowledge-prev-page').addEventListener('click',()=>{if(knowledgePage>1){knowledgePage--;renderKnowledge();}});$k('knowledge-next-page').addEventListener('click',()=>{if(knowledgePage*30<knowledgeTotal){knowledgePage++;renderKnowledge();}});

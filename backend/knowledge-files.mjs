@@ -10,6 +10,11 @@ export function createKnowledgeFiles(db, transaction, ApiError) {
       version_id TEXT NOT NULL REFERENCES knowledge_versions(id), document_id TEXT NOT NULL,
       file_id TEXT NOT NULL REFERENCES files(id), parsed_json TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY(version_id,document_id));`);
+    db.exec(`CREATE TABLE IF NOT EXISTS knowledge_purged_documents (
+      project_id TEXT NOT NULL REFERENCES knowledge_projects(id), document_id TEXT NOT NULL,
+      purged_at TEXT NOT NULL, PRIMARY KEY(project_id,document_id));
+      CREATE TABLE IF NOT EXISTS knowledge_file_cleanup (file_id TEXT PRIMARY KEY REFERENCES files(id));
+      INSERT OR IGNORE INTO schema_migrations VALUES (8,strftime('%Y-%m-%dT%H:%M:%fZ','now'));`);
     if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=7').get()) {
       for (const version of db.prepare('SELECT v.*,f.name FROM knowledge_versions v JOIN files f ON f.id=v.file_id').all()) {
         const parsed = { summary: JSON.parse(version.summary_json), sheets: JSON.parse(version.sheets_json), diagnostics: JSON.parse(version.diagnostics_json) };
@@ -21,7 +26,7 @@ export function createKnowledgeFiles(db, transaction, ApiError) {
   });
   const hasTable = name => Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
   function manifest(versionId) {
-    return db.prepare(`SELECT m.*,f.name,f.sha256,f.bytes,f.created_at FROM knowledge_version_files m JOIN files f ON f.id=m.file_id WHERE version_id=? ORDER BY m.rowid`).all(versionId)
+    return db.prepare(`SELECT m.*,f.name,f.sha256,f.bytes,f.created_at FROM knowledge_version_files m JOIN files f ON f.id=m.file_id WHERE version_id=? AND NOT EXISTS (SELECT 1 FROM knowledge_purged_documents p WHERE p.document_id=m.document_id) ORDER BY m.rowid`).all(versionId)
       .map(row => ({ ...row, parsed: JSON.parse(row.parsed_json) }));
   }
   function enrich(project) {
@@ -90,6 +95,24 @@ export function createKnowledgeFiles(db, transaction, ApiError) {
     enrich, manifest, assertVersion,
     create(value) { return transaction(() => { const title = name(value), id = randomUUID(); db.prepare('INSERT INTO knowledge_projects VALUES (?,?,NULL,NULL,?)').run(id,title,new Date().toISOString()); publish(id,[]); return id; }); },
     rename(id, input) { transaction(() => { assertVersion(id,input.expectedVersionId); db.prepare('UPDATE knowledge_projects SET name=? WHERE id=?').run(name(input.name),id); }); },
+    purge(id, documentId, input) { transaction(() => {
+      const project=assertVersion(id,input.expectedVersionId);
+      const file=manifest(project.current_version_id).find(f=>f.document_id===documentId && f.deleted);
+      if(!file)throw new ApiError(404,'已删除文件不存在，或已被彻底删除。');
+      if(input.confirmed!==true)throw new ApiError(400,'请确认彻底删除此文件，此操作无法撤销。');
+      if(hasTable('assessment_runs') && db.prepare("SELECT 1 FROM assessment_runs r JOIN assessment_tasks t ON t.id=r.task_id WHERE r.project_id=? AND t.status='running'").get(id))throw new ApiError(409,'该知识库正在用于自评，请等待完成或停止任务后再彻底删除。');
+      db.prepare('INSERT INTO knowledge_purged_documents VALUES (?,?,?)').run(id,documentId,new Date().toISOString());
+      const records='SELECT r.id FROM knowledge_records r JOIN knowledge_versions v ON v.id=r.version_id WHERE v.project_id=? AND r.document_id=?';
+      if(hasTable('index_vectors'))db.prepare(`DELETE FROM index_vectors WHERE record_id IN (${records})`).run(id,documentId);
+      // Only records linked to historical assessment evidence remain for auditing.
+      db.prepare(`DELETE FROM knowledge_records WHERE id IN (${records}) AND id NOT IN (SELECT record_id FROM result_sources)`).run(id,documentId);
+      const fileIds=db.prepare('SELECT DISTINCT m.file_id FROM knowledge_version_files m JOIN knowledge_versions v ON v.id=m.version_id WHERE v.project_id=? AND m.document_id=?').all(id,documentId);
+      for(const {file_id:fileId} of fileIds){
+        const shared=db.prepare('SELECT 1 FROM knowledge_version_files m WHERE m.file_id=? AND NOT EXISTS (SELECT 1 FROM knowledge_purged_documents p WHERE p.document_id=m.document_id)').get(fileId);
+        const inputFile=db.prepare('SELECT 1 FROM assessment_tasks WHERE input_file_id=?').get(fileId) || (hasTable('assessment_inputs') && db.prepare('SELECT 1 FROM assessment_inputs WHERE id=?').get(fileId));
+        if(!shared && !inputFile)db.prepare('INSERT OR IGNORE INTO knowledge_file_cleanup VALUES (?)').run(fileId);
+      }
+    }); },
     commit(importId, options) { return transaction(() => {
       const project = assertVersion(options.projectId,options.expectedVersionId);
       const staged = db.prepare('SELECT i.*,f.name,f.sha256 FROM knowledge_imports i JOIN files f ON f.id=i.id WHERE i.id=?').get(importId);

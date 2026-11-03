@@ -52,7 +52,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 input { caret-color: var(--green); }
 ::selection { color: #163f2e; background: #dcece2; }
 [hidden] { display: none !important; }
-.library-toolbar, .library-files-heading, .library-preview-heading, .library-detail-meta, .library-training-nav { display:flex;align-items:center;gap:16px; }
+.library-toolbar, .library-files-heading, .library-preview-heading, .library-training-nav { display:flex;align-items:center;gap:16px; }
 .library-toolbar { justify-content:space-between;margin:12px 0 20px; }
 .library-toolbar h2, .library-files h2, .library-preview h2 { margin:0;font-family:var(--font-serif);font-size:var(--text-title); }
 .library-catalog-scroll { overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius); }
@@ -66,10 +66,29 @@ input { caret-color: var(--green); }
 .library-name .icon { color:var(--green); }
 .library-back { margin-bottom:18px; }
 .library-heading-actions, .library-file-actions { display:flex;gap:12px;align-items:center;flex-shrink:0; }
-.library-detail-heading { align-items:flex-start;gap:20px; }
-.library-detail-heading h1 { overflow-wrap:anywhere;margin-bottom:6px; }
-.library-detail-meta { flex-wrap:wrap;margin:-6px 0 22px;font-size:var(--text-label);color:var(--secondary); }
-#library-update-note { color:var(--amber); }
+.library-detail-header { margin-bottom:28px; }
+.library-detail-heading { display:flex;align-items:center;justify-content:space-between;gap:28px; }
+.library-detail-heading h1 { overflow-wrap:anywhere;margin:0;min-width:0; }
+#library-update-note { color:var(--amber);margin:16px 0 0;font-size:var(--text-label); }
+#library-update-note:empty { display:none; }
+.library-more { position:relative; }
+.library-more summary { list-style:none;gap:8px;cursor:pointer; }
+.library-more summary::-webkit-details-marker { display:none; }
+.library-more[open] summary { border-color:var(--green); }
+.library-more-actions { position:absolute;right:0;top:calc(100% + 8px);z-index:12;min-width:200px;padding:8px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--small-radius);box-shadow:0 8px 24px #172f2514; }
+.library-more-actions>span { display:block;padding:8px 12px;font-size:var(--text-label);color:var(--secondary);border-bottom:1px solid var(--line);margin-bottom:4px; }
+.library-more-actions>button { display:block;width:100%;text-align:left;padding:10px 12px;border-radius:4px; }
+.library-more-actions>button:hover { background:var(--green-faint); }
+.knowledge-format-notice { display:flex;gap:10px;align-items:flex-start;color:var(--secondary);font-size:var(--text-data);margin:0 0 22px; }
+.knowledge-format-notice .icon { margin-top:2px;color:var(--green); }
+.knowledge-format-notice strong { color:var(--ink); }
+.knowledge-upload-guide { margin:0 0 22px;padding:18px;background:var(--green-faint);border:1px solid var(--line);border-radius:var(--small-radius); }
+.knowledge-upload-guide h3 { margin:0 0 12px;font-size:var(--text-body); }
+.knowledge-header-example { display:grid;grid-template-columns:.7fr 1.2fr 1.2fr;background:var(--surface);border:1px solid var(--line-strong); }
+.knowledge-header-example>span { padding:10px 12px;border-right:1px solid var(--line-strong); }
+.knowledge-header-example>span:last-child { border:0; }
+.knowledge-header-example small { display:block;color:var(--secondary);font-size:var(--text-label); }
+.knowledge-upload-guide p { margin:12px 0 0;font-size:var(--text-label);color:var(--secondary); }
 .library-workspace { display:grid;grid-template-columns:260px minmax(0,1fr);border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden;min-height:520px; }
 .library-files { padding:20px 12px;background:var(--rail);border-right:1px solid var(--line);min-width:0; }
 .library-files-heading { justify-content:space-between;padding:0 8px 16px; }
@@ -99,8 +118,9 @@ input { caret-color: var(--green); }
 .library-preview .table-footer { padding:16px 0 0;flex-wrap:wrap;gap:10px; }
 #library-deleted-files { margin:24px 8px 0;border-top:1px solid var(--line-strong);padding-top:16px;font-size:var(--text-label); }
 #library-deleted-files summary { cursor:pointer; }
-.library-trash-file { display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px; }
+.library-trash-file { display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px 0;border-bottom:1px solid var(--line); }
 .library-trash-file span { overflow-wrap:anywhere;min-width:0; }
+.library-trash-file>div { display:flex;align-self:flex-end;align-items:center;gap:16px; }
 .library-trash-file button { flex-shrink:0; }
 .library-training-nav { margin-bottom:24px;flex-wrap:wrap; }
 .library-training-nav span { flex:1;overflow-wrap:anywhere; }
@@ -108,7 +128,10 @@ input { caret-color: var(--green); }
 #knowledge-upload-dialog .upload-layout { display:block; }
 #knowledge-upload-dialog .upload-panel { border:0;padding:0; }
 #knowledge-upload-dialog .upload-panel>h2 { display:none; }
-#knowledge-name-dialog, #knowledge-file-delete-dialog { width:min(480px,calc(100% - 32px)); }
+#knowledge-name-dialog, #knowledge-file-delete-dialog, #knowledge-file-purge-dialog { width:min(480px,calc(100% - 32px)); }
+#knowledge-file-purge-name { display:block;overflow-wrap:anywhere; }
+#knowledge-file-purge-error:empty { display:none; }
+#knowledge-file-purge-dialog .panel-action-row { gap:12px; }
 @media(max-width:1199px) {
   .library-workspace { grid-template-columns:220px minmax(0,1fr); }
   .library-preview { padding:20px 16px; }
@@ -120,7 +143,10 @@ input { caret-color: var(--green); }
   #training-sheets label span { white-space:nowrap; }
   .library-toolbar { flex-wrap:wrap; }
   .library-detail-heading { flex-wrap:wrap; }
-  .library-heading-actions { flex-wrap:wrap; }
+  .library-heading-actions { flex-wrap:wrap;gap:8px; }
+  .library-detail-heading { gap:20px; }
+  .knowledge-upload-guide { padding:14px 12px; }
+  .knowledge-header-example>span { padding:8px; }
   .library-workspace { display:block; }
   .library-files { border-right:0;border-bottom:1px solid var(--line);padding:16px; }
   #library-file-list { max-height:240px;overflow-y:auto; }

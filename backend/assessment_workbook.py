@@ -46,7 +46,7 @@ def shift_formula(formula, sheet_name, affected):
 
 def parse_input(path):
     import openpyxl
-    parsed = parse_workbook(path)
+    parsed = parse_workbook(path, strict_headers=False)
     workbook = openpyxl.load_workbook(path, data_only=False, keep_links=False)
     try:
         if len(parsed["records"]) > 5000:

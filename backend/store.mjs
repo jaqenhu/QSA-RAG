@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createKnowledgeFiles } from './knowledge-files.mjs';
@@ -30,6 +30,18 @@ export function createStore(directory) {
     catch (error) { db.exec('ROLLBACK'); throw error; }
   };
   const documents = createKnowledgeFiles(db, transaction, ApiError);
+  function cleanupPurgedFiles() {
+    for(const {file_id:fileId} of db.prepare('SELECT file_id FROM knowledge_file_cleanup').all()) {
+      if(!/^[a-f0-9-]{36}$/.test(fileId))continue;
+      try { unlinkSync(join(directory,'files',`${fileId}.xlsx`)); }
+      catch(error) { if(error.code!=='ENOENT')continue; }
+      transaction(()=>{
+        db.prepare("UPDATE knowledge_imports SET parsed_json='{}' WHERE id=?").run(fileId);
+        db.prepare('DELETE FROM knowledge_file_cleanup WHERE file_id=?').run(fileId);
+      });
+    }
+    return db.prepare('SELECT COUNT(*) count FROM knowledge_file_cleanup').get().count;
+  }
   const versionQuery = `SELECT p.id,p.name,p.deleted_at,p.created_at,v.id version_id,v.number,v.summary_json,v.sheets_json,v.created_at updated_at,f.name file_name,f.sha256
     FROM knowledge_projects p JOIN knowledge_versions v ON v.id=p.current_version_id JOIN files f ON f.id=v.file_id`;
   function project(row) {
@@ -58,6 +70,8 @@ export function createStore(directory) {
     create(name) { return getProject(documents.create(name)); },
     rename(id, input) { documents.rename(id, input); return getProject(id); },
     mutateFile(id, documentId, input, restore) { documents.mutate(id, documentId, input, restore); return getProject(id); },
+    cleanupPurgedFiles,
+    purgeFile(id, documentId, input) { documents.purge(id, documentId, input); const cleanupPending=cleanupPurgedFiles(); return { project:getProject(id),cleanupPending }; },
     stage(file, parsed) {
       transaction(() => {
         db.prepare('INSERT INTO files VALUES (?,?,?,?,?)').run(file.id, file.name, file.sha256, file.bytes, file.createdAt);
@@ -119,7 +133,7 @@ export function createStore(directory) {
       const sheet = (params.get('sheet') || '').slice(0, 100);
       const search = (params.get('q') || '').trim().slice(0, 200).toLowerCase();
       const status = params.get('status') || 'all';
-      const clauses = ['version_id=?'];
+      const clauses = ['version_id=?','NOT EXISTS (SELECT 1 FROM knowledge_purged_documents p WHERE p.document_id=knowledge_records.document_id)'];
       const args = [versionId];
       if (sheet) { clauses.push('sheet=?'); args.push(sheet); }
       if (search) { clauses.push('(instr(lower(question),?)>0 OR instr(lower(answer),?)>0 OR instr(lower(chapter),?)>0)'); args.push(search, search, search); }

@@ -70,6 +70,7 @@ export function createIndexer(store, models, client) {
     } catch { staleReason = '原向量模型已删除，请重新配置并重建索引。'; }
     return { index: { id: row.id, versionId: row.version_id, modelId: row.model_id, dimensions: row.dimensions, config, createdAt: row.created_at,
       version: db.prepare('SELECT number FROM knowledge_versions WHERE id=?').get(row.version_id).number,
+      purgeRevision: db.prepare('SELECT COUNT(*) count FROM knowledge_purged_documents WHERE project_id=?').get(projectId).count,
       count: db.prepare('SELECT COUNT(*) count FROM index_vectors WHERE index_id=?').get(row.id).count }, ready: !staleReason, staleReason, pendingUpdate };
   }
   function corpus(indexId) {
@@ -230,7 +231,7 @@ export function createIndexer(store, models, client) {
         results = reranked.map(r => ({ ...candidates[r.index], retrievalScore: candidates[r.index].score, score: r.score, rerankScore: r.score })).sort((a, b) => b.score - a.score);
       }
       const finalState = indexState(projectId);
-      if (!finalState.ready || finalState.index.id !== index.id) throw new ApiError(409, '检索期间知识库或索引已更新，请重试。');
+      if (!finalState.ready || finalState.index.id !== index.id || finalState.index.purgeRevision !== index.purgeRevision) throw new ApiError(409, '检索期间知识库或索引已更新，请重试。');
       return { indexId: index.id, versionId: index.versionId, method, threshold, topK: returnLimit, config, candidateCount, scoreType: rerankId ? 'rerank' : rrf ? 'rrf' : method, reranked: Boolean(rerankId), results: results.filter(row => threshold === null || row.score >= threshold).slice(0, returnLimit) };
     },
     async shutdown() { const entries = [...active.values()]; entries.forEach(entry => entry.controller.abort()); await Promise.allSettled(entries.map(entry => entry.done)); },

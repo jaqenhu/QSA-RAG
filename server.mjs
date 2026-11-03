@@ -74,6 +74,7 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
   const directory = resolve(dataDir);
   const store = createStore(directory);
   try { claimService(store); retireAccounts(store); } catch (error) { store.close(); throw error; }
+  store.cleanupPurgedFiles();
   const models = createModels(store, vault, providerClient);
   const indexer = createIndexer(store, models, providerClient);
   const assessment = createAssessment(store, models, indexer, providerClient, { directory, python });
@@ -93,7 +94,7 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
         if ((origin && origin !== `http://${host}`) || request.headers['sec-fetch-site'] === 'cross-site') throw new ApiError(403, '请从本机 QSA 页面执行操作。');
         const path = url.pathname;
         const method = request.method;
-        if (path === '/api/health' && method === 'GET') return json(200, { status: 'ok', storage: 'sqlite', schemaVersion: 5, maxUploadBytes: MAX_UPLOAD });
+        if (path === '/api/health' && method === 'GET') return json(200, { status: 'ok', storage: 'sqlite', schemaVersion: store.db.prepare('SELECT MAX(version) version FROM schema_migrations').get().version, maxUploadBytes: MAX_UPLOAD });
         if (path === '/api/assessment/current' && method === 'GET') return json(200, assessment.current());
         if (path === '/api/assessment/tasks' && method === 'GET') return json(200, assessment.history(url.searchParams));
         const assessmentInput = path.match(/^\/api\/assessment\/inputs\/([a-f0-9-]+)$/);
@@ -193,7 +194,8 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
           if (options.name) options.name = options.name.trim();
           return json(201, { project: store.commit(importMatch[1], options) });
         }
-        const fileMatch = path.match(/^\/api\/knowledge\/([a-f0-9-]+)\/files\/([a-f0-9-]+)(\/restore)?$/);
+        const fileMatch = path.match(/^\/api\/knowledge\/([a-f0-9-]+)\/files\/([a-f0-9-]+)(\/restore|\/purge)?$/);
+        if(fileMatch?.[3]==='/purge' && method==='DELETE')return json(200,store.purgeFile(fileMatch[1],fileMatch[2],await readJson(request)));
         if (fileMatch && ((!fileMatch[3] && method === 'DELETE') || (fileMatch[3] && method === 'POST'))) {
           const body = await readJson(request); return json(200, { project: store.mutateFile(fileMatch[1],fileMatch[2],body,Boolean(fileMatch[3])) });
         }

@@ -56,7 +56,7 @@ try {
   await page.locator('#knowledge-file-input').setInputFiles(join(directory,'v1.xlsx'));
   await page.waitForFunction(() => !document.getElementById('knowledge-upload-preview').hidden);
   await page.locator('#confirm-knowledge-upload').click();
-  await page.waitForFunction(() => document.getElementById('knowledge-project-summary').textContent.includes('48 项问题'));
+  await page.locator('#knowledge-records tr').first().waitFor();
   await go('knowledge-training');
   await page.waitForFunction(() => !document.getElementById('start-knowledge-training').disabled);
   assert.match(await page.locator('#training-selection-summary').textContent(), /45 条有说明/);
