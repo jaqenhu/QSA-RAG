@@ -7,11 +7,12 @@ import { ApiError } from './store.mjs';
 import { providerError } from './providers.mjs';
 import { groundedResult } from './assessment-output.mjs';
 import { legacyAssessmentRetrieval } from './retrieval-config.mjs';
+import { pythonScript } from './python-path.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 export function assessmentWorkbook(python, args, input = null) {
   return new Promise((resolve, reject) => {
-    const child = spawn(python, ['-X', 'utf8', join(root, 'backend', 'assessment_workbook.py'), ...args], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(python, ['-X', 'utf8', pythonScript('assessment_workbook.py'), ...args], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     const chunks = []; let size = 0, settled = false;
     const finish = (error, value) => { if (settled) return; settled = true; clearTimeout(timer); error ? reject(error) : resolve(value); };
     const timer = setTimeout(() => { child.kill(); finish(new ApiError(422, '待填表处理超时，请精简文件后重试。')); }, 60000);

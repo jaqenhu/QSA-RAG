@@ -1,6 +1,6 @@
 # QSA-RAG
 
-![Version](https://img.shields.io/badge/version-0.6.0-2563eb)
+![Version](https://img.shields.io/badge/version-0.7.0--beta.3-2563eb)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078d4)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A524-339933)
 ![Python](https://img.shields.io/badge/Python-%E2%89%A53.10-3776ab)
@@ -12,6 +12,8 @@
 **Windows 本机运行 · 默认端口 4174 · 无需登录 · 支持双击启动**
 
 [快速开始](#快速开始) · [使用流程](#使用流程) · [详细说明](docs/usage.md)
+
+Windows Electron 桌面测试版的安装、内置运行环境、自动更新及构建说明见 **[桌面版说明](docs/desktop.md)**。源码部署方式继续可用。
 
 ## 能做什么
 
@@ -58,7 +60,9 @@ npm ci
 
 ## 数据与开发
 
-业务数据位于 `.data/`，已加入 `.gitignore`。备份时先关闭服务，再复制完整目录；换电脑后需重新填写模型 API Key。
+业务数据默认位于 `%LOCALAPPDATA%\QSA-RAG\data\`，与程序目录分开；启动窗口会显示实际路径。备份时先关闭服务，再复制完整数据目录；换电脑后需重新填写模型 API Key。已有 `QSA_DATA_DIR` 配置继续有效。
+
+首次使用新版时，关闭原服务后启动，程序会校验并复制项目内旧 `.data/`，验证全部数据库记录和文件后启用新目录；旧目录保留为迁移前备份，此后不再同步。新旧目录已有独立数据时会停止并提示，不自动覆盖或合并。
 
 旧版升级在下次启动时迁移单文件库为多文件清单，并清理旧账号及会话表；保留知识库、原文件、索引、模型配置和任务历史。建议升级前按上述方式备份，详见 [升级说明](docs/usage.md#升级说明)。
 

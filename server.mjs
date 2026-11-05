@@ -12,6 +12,9 @@ import { createIndexer } from './backend/indexer.mjs';
 import { claimService } from './backend/service-lease.mjs';
 import { createAssessment, assessmentWorkbook } from './backend/assessment.mjs';
 import { retireAccounts } from './backend/retire-accounts.mjs';
+import { prepareDataDirectory } from './backend/data-directory.mjs';
+import { pythonScript } from './backend/python-path.mjs';
+import packageInfo from './package.json' with { type: 'json' };
 
 const root = dirname(fileURLToPath(import.meta.url));
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' };
@@ -44,7 +47,7 @@ async function readJson(request) {
 }
 function parseWorkbook(filePath, python) {
   return new Promise((done, reject) => {
-    const child = spawn(python, ['-X', 'utf8', join(root, 'backend', 'parse_workbook.py'), filePath], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(python, ['-X', 'utf8', pythonScript('parse_workbook.py'), filePath], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let outputBytes = 0, settled = false;
     const chunks = [];
     const finish = (error, data) => {
@@ -70,16 +73,30 @@ function parseWorkbook(filePath, python) {
   });
 }
 
-export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.data'), python = process.env.QSA_PYTHON || 'python', providerClient = createProviderClient(), vault = createVault(python) } = {}) {
-  const directory = resolve(dataDir);
+export function createApp({ dataDir, python = process.env.QSA_PYTHON || 'python', providerClient = createProviderClient(), vault = createVault(python) } = {}) {
+  const dataLocation = prepareDataDirectory({ dataDir, appRoot: root });
+  const directory = dataLocation.directory;
+  if (dataLocation.migrated) console.log(`数据已迁移至：${directory}\n原目录保留为迁移前备份：${dataLocation.source}`);
   const store = createStore(directory);
   try { claimService(store); retireAccounts(store); } catch (error) { store.close(); throw error; }
   store.cleanupPurgedFiles();
   const models = createModels(store, vault, providerClient);
   const indexer = createIndexer(store, models, providerClient);
   const assessment = createAssessment(store, models, indexer, providerClient, { directory, python });
-  let parsing = 0;
+  let parsing = 0, requests = 0, foregroundRequests = 0;
+  const idleWaiters = new Set();
   const server = http.createServer(async (request, response) => {
+    requests++;
+    const foreground = request.method !== 'GET' || /\/export(?:\?|$)/.test(request.url);
+    if (foreground) foregroundRequests++;
+    let completed = false, handled = false, responded = false;
+    const complete = () => {
+      if (completed || !handled || !responded) return;
+      completed = true; requests--; if (foreground) foregroundRequests--;
+      if (!requests) { for (const done of idleWaiters) done(); idleWaiters.clear(); }
+    };
+    const responseDone = () => { responded = true; complete(); };
+    response.once('finish', responseDone); response.once('close', responseDone);
     const json = (status, data) => { response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' }); response.end(JSON.stringify(data)); };
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -94,7 +111,7 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
         if ((origin && origin !== `http://${host}`) || request.headers['sec-fetch-site'] === 'cross-site') throw new ApiError(403, '请从本机 QSA 页面执行操作。');
         const path = url.pathname;
         const method = request.method;
-        if (path === '/api/health' && method === 'GET') return json(200, { status: 'ok', storage: 'sqlite', schemaVersion: store.db.prepare('SELECT MAX(version) version FROM schema_migrations').get().version, maxUploadBytes: MAX_UPLOAD });
+        if (path === '/api/health' && method === 'GET') return json(200, { status: 'ok', appVersion: packageInfo.version, storage: 'sqlite', schemaVersion: store.db.prepare('SELECT MAX(version) version FROM schema_migrations').get().version, maxUploadBytes: MAX_UPLOAD });
         if (path === '/api/assessment/current' && method === 'GET') return json(200, assessment.current());
         if (path === '/api/assessment/tasks' && method === 'GET') return json(200, assessment.history(url.searchParams));
         const assessmentInput = path.match(/^\/api\/assessment\/inputs\/([a-f0-9-]+)$/);
@@ -221,15 +238,21 @@ export function createApp({ dataDir = process.env.QSA_DATA_DIR || join(root, '.d
       response.end(request.method === 'HEAD' ? undefined : content);
     } catch (error) {
       if (!response.headersSent && !response.destroyed) json(error.status || 500, { error: error instanceof ApiError ? error.message : '服务处理失败，请重试。数据未确认保存时不会发布新版本。' });
-    }
+    } finally { handled = true; complete(); }
   });
   server.requestTimeout = 90000;
-  return { server, store, models, indexer, assessment };
+  const activity = () => {
+    const training = store.db.prepare("SELECT COUNT(*) n FROM training_jobs WHERE status='running'").get().n;
+    const assessments = store.db.prepare("SELECT COUNT(*) n FROM assessment_tasks WHERE status='running'").get().n;
+    return { training, assessments, requests, foregroundRequests, busy: Boolean(training || assessments || requests) };
+  };
+  const whenIdle = () => requests ? new Promise(done => idleWaiters.add(done)) : Promise.resolve();
+  return { server, store, models, indexer, assessment, dataDirectory: directory, activity, whenIdle };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { server, store, indexer, assessment } = createApp();
+  const { server, store, indexer, assessment, dataDirectory } = createApp();
   server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? '端口已占用，请关闭旧服务或设置 PORT。' : '本地服务启动失败。'); process.exitCode = 1; store.close(); });
-  server.listen(Number(process.env.PORT || 4174), '127.0.0.1', () => console.log(`QSA: http://127.0.0.1:${server.address().port}`));
+  server.listen(Number(process.env.PORT || 4174), '127.0.0.1', () => console.log(`QSA: http://127.0.0.1:${server.address().port}\n数据目录：${dataDirectory}`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => server.close(async () => { await assessment.shutdown(); await indexer.shutdown(); store.close(); process.exit(0); }));
 }

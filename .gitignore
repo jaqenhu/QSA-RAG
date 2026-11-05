@@ -13,3 +13,6 @@ venv/
 *.log
 outputs/
 .impeccable/
+.build/
+.build-cache/
+release/

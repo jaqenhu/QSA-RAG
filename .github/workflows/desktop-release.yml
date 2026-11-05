@@ -1,0 +1,70 @@
+name: Windows desktop release
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify version tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $expected = 'v' + (Get-Content package.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne $expected) { throw 'Tag and package version must match' }
+      - run: npm ci
+      - run: python -m pip install -r requirements.txt
+      - run: npm run check
+      - run: npm test
+      - name: Build desktop installer
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          if ($version.Contains('-')) { npm run desktop:build } else { npm run desktop:build:signed }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: npm run desktop:test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QSA-RAG-Windows-x64
+          path: |
+            release/*.exe
+            release/*.blockmap
+            release/beta.yml
+            release/latest.yml
+            release/SHA256SUMS.txt
+          retention-days: 14
+  draft-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: QSA-RAG-Windows-x64
+          path: release
+      - name: Create reviewable draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release -File | ForEach-Object { $_.FullName }
+          $arguments = @('release', 'create', $env:GITHUB_REF_NAME, '--draft', '--verify-tag', '--title', "QSA-RAG $env:GITHUB_REF_NAME", '--notes-file', 'desktop/release-notes.md')
+          if ($env:GITHUB_REF_NAME.Contains('-')) { $arguments += '--prerelease' }
+          gh @arguments @files

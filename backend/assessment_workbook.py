@@ -8,6 +8,8 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 from html import unescape
+# The embedded runtime isolates sys.path; explicitly allow our sibling helper.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parse_workbook import parse_workbook, inspect_archive
 
 NS = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}

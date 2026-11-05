@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { pythonScript } from './python-path.mjs';
 import { ApiError } from './store.mjs';
 
 export function createVault(python = 'python') {
   async function transform(mode, value) {
     return new Promise((resolve, reject) => {
-      const child = spawn(python, ['-X', 'utf8', fileURLToPath(new URL('./protect_secret.py', import.meta.url))], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+      const child = spawn(python, ['-X', 'utf8', pythonScript('protect_secret.py')], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
       let result = '', settled = false;
       const finish = (error, data) => { if (settled) return; settled = true; clearTimeout(timer); error ? reject(error) : resolve(data); };
       const fail = () => finish(new ApiError(503, '本机密钥保护不可用。请使用当前 Windows 用户运行服务，或重新填写密钥。'));

@@ -40,7 +40,7 @@ async function main() {
     throw error;
   });
   const url = `http://127.0.0.1:${port}`;
-  console.log(`\nQSA 已启动：${url}\nPython：${python}\n请保持此窗口开启。输入 q 并按回车，或按 Ctrl+C，停止服务。\n`);
+  console.log(`\nQSA 已启动：${url}\nPython：${python}\n数据目录：${app.dataDirectory}\n请保持此窗口开启。输入 q 并按回车，或按 Ctrl+C，停止服务。\n`);
 
   let stopping = false;
   async function stop() {

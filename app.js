@@ -1,5 +1,9 @@
 "use strict";
 
+fetch('/api/health').then(response => response.json()).then(health => {
+  if (health.appVersion) document.getElementById('app-version').textContent = `v${health.appVersion}`;
+}).catch(() => {});
+
 // Shared rendering for persisted current and historical assessments.
 const icon = (name, extra = "") => `<svg class="icon ${extra}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const escapeHTML = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
